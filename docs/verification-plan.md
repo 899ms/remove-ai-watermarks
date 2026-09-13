@@ -498,6 +498,9 @@ the metadata-serialization probe inside that workflow. It now records raw
 markers, input shapes, identify errors, integrity clashes, unattributed results,
 and blind-marker candidates, but it does not cover visible marks, proprietary
 invisible marks, detection/removal parity, or historical crossfire.
+The scan runs files in parallel and checkpoints each completed row beside the
+requested CSV as `.progress.jsonl`; repeat the same command to resume an
+interrupted run, and use a distinct report path for every code/corpus snapshot.
 
 Run a fresh-delta discovery review weekly after the retained corpus is
 refreshed, using `corpus_gap_scan.py --since` with an overlap from the preceding

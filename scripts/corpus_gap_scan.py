@@ -2,9 +2,10 @@
 
 Two jobs in one pass:
 
-1. **Report** -- run ``identify`` over every image and write one CSV row per file
-   (verdict, platform, confidence, watermarks, signals, raw metadata markers,
-   candidate classes, integrity clashes, and errors).
+1. **Report** -- run metadata-only ``identify`` over every file and write one CSV
+   row per file (verdict, platform, confidence, watermarks, signals, raw metadata
+   markers, candidate classes, integrity clashes, and errors). Visible and
+   invisible pixel detectors belong to their own corpus audits.
 2. **Gap audit** -- for every ``unknown``-verdict file, scan only its *metadata
    region* (PNG text/eXIf chunks, JPEG APPn segments before SOS, or the file
    head for other containers) for known provenance markers. A marker found there
@@ -20,17 +21,25 @@ This is how new detector gaps get found (it is what surfaced the JPEG-EXIF
 Usage:
     uv run python scripts/corpus_gap_scan.py --corpus .local-eval/originals
     uv run python scripts/corpus_gap_scan.py --corpus .local-eval/originals \\
-        --report .local-eval/detector-report.csv
+        --workers 8 --report .local-eval/detector-report.csv
     uv run python scripts/corpus_gap_scan.py --corpus .local-eval/originals \\
         --since 2026-09-01 --report .local-eval/detector-report-weekly.csv
+
+Rows stream into ``<report>.progress.jsonl`` and resume by relative path after an
+interruption. Use a new report name for a new code/corpus snapshot, or pass
+``--restart`` when intentionally replacing the checkpoint. The final CSV is
+written atomically after every selected row is present.
 """
 
 from __future__ import annotations
 
 import csv
+import itertools
+import json
 import logging
-import re
+import os
 from collections import Counter
+from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
 from datetime import date
 from importlib.metadata import version
 from pathlib import Path
@@ -48,6 +57,7 @@ from remove_ai_watermarks.metadata import (
     c2pa_marker_in,
     samsung_genai_in,
     scan_head,
+    xai_signature_in_metadata,
 )
 
 log = logging.getLogger(__name__)
@@ -79,9 +89,6 @@ MARKERS: tuple[bytes, ...] = (
     b"Nano Banana",
     b"Stability AI",
 )
-_XAI_SIGNATURE_RE = re.compile(rb"Signature:\s*[A-Za-z0-9+/=]{64,}")
-_UUID_RE = re.compile(rb"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.IGNORECASE)
-
 REPORT_FIELDS: tuple[str, ...] = (
     "path",
     "suffix",
@@ -96,6 +103,8 @@ REPORT_FIELDS: tuple[str, ...] = (
     "candidate_classes",
     "error",
 )
+_DISPLAY_CANDIDATE_LIMIT = 50
+_WORKER_BATCH_SIZE = 16
 
 
 def _base_row(path: str, suffix: str, lib_version: str) -> dict[str, str]:
@@ -128,7 +137,7 @@ def _marker_hits(region: bytes) -> list[str]:
         hits.add("IPTC AI disclosure")
     if samsung_genai_in(region) is not None:
         hits.add("Samsung genAIType")
-    if _XAI_SIGNATURE_RE.search(region) and _UUID_RE.search(region):
+    if xai_signature_in_metadata(region):
         hits.add("xAI signature pair")
     return sorted(hits)
 
@@ -176,6 +185,106 @@ def _files(corpus: Path, since: date | None) -> list[Path]:
     return sorted(path for root in roots for path in root.rglob("*") if path.is_file())
 
 
+def _scan_one(args: tuple[str, str, str]) -> dict[str, str]:
+    """Scan one path in a worker process and always return a report row."""
+    path_str, relative_path, lib_version = args
+    path = Path(path_str)
+    suffix = path.suffix.lower()
+    try:
+        rep = identify(path, check_visible=False, check_invisible=False)
+    except Exception as exc:
+        log.warning("identify failed on %s: %s", relative_path, exc)
+        row = _base_row(relative_path, suffix, lib_version)
+        row["candidate_classes"] = "identify_error"
+        row["error"] = f"{type(exc).__name__}: {exc}"[:300].replace("\n", " ")
+    else:
+        row = _row(rep, path=relative_path, suffix=suffix, lib_version=lib_version)
+        hits = _marker_hits_for_path(path)
+        row["markers"] = "|".join(hits)
+        row["candidate_classes"] = "|".join(_candidate_classes(rep, hits))
+        return row
+    row["markers"] = "|".join(_marker_hits_for_path(path))
+    return row
+
+
+def _scan_batch(args: tuple[tuple[str, str, str], ...]) -> list[dict[str, str]]:
+    """Scan a small path batch to amortize process-pool dispatch overhead."""
+    return [_scan_one(item) for item in args]
+
+
+def _read_checkpoint(path: Path) -> dict[str, dict[str, str]]:
+    """Read complete JSONL rows, tolerating an interrupted final write."""
+    rows: dict[str, dict[str, str]] = {}
+    if not path.exists():
+        return rows
+    with path.open(encoding="utf-8") as stream:
+        for line in stream:
+            try:
+                row = json.loads(line)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                continue
+            if isinstance(row, dict) and isinstance(row.get("path"), str):
+                rows[row["path"]] = {field: str(row.get(field, "")) for field in REPORT_FIELDS}
+    return rows
+
+
+def _repair_checkpoint(path: Path) -> None:
+    """Remove an interrupted final JSONL fragment before another append."""
+    if not path.exists():
+        return
+    with path.open("rb+") as stream:
+        data = stream.read()
+        if data and not data.endswith(b"\n"):
+            last_newline = data.rfind(b"\n")
+            stream.truncate(last_newline + 1)
+
+
+def _summarize(rows: list[dict[str, str]]) -> None:
+    """Print bounded aggregate output for a completed or resumed report."""
+    verdicts: Counter[str] = Counter()
+    platforms: Counter[str] = Counter()
+    shapes: Counter[str] = Counter()
+    errors = 0
+    for row in rows:
+        shapes[row["suffix"] or "(none)"] += 1
+        if row["error"]:
+            errors += 1
+        elif row["is_ai"] == "True":
+            verdicts["ai"] += 1
+            platforms[row["platform"] or "?"] += 1
+        else:
+            verdicts["unknown"] += 1
+
+    console.print(f"\n[bold]Verdicts:[/bold] AI {verdicts['ai']} | unknown {verdicts['unknown']} | errors {errors}")
+    console.print("[bold]Input shapes:[/bold] " + " | ".join(f"{name} {n}" for name, n in shapes.most_common()))
+    plat = Table(title="AI platforms", show_header=False)
+    for name, count in platforms.most_common():
+        plat.add_row(str(count), name)
+    console.print(plat)
+
+    candidates = [row for row in rows if row["candidate_classes"]]
+    if not candidates:
+        console.print("\n[green]No review candidates in this run.[/green]")
+        return
+    candidate_counts = Counter(candidate for row in candidates for candidate in row["candidate_classes"].split("|"))
+    gap_tokens = Counter(marker for row in rows for marker in row["markers"].split("|") if marker)
+    console.print(
+        f"\n[bold red]Review candidates[/bold red]: {len(candidates)} file(s) "
+        f"({', '.join(f'{name}={n}' for name, n in candidate_counts.most_common())})"
+    )
+    tok = Table(title="metadata markers seen across the run")
+    tok.add_column("count", justify="right")
+    tok.add_column("marker")
+    for name, count in gap_tokens.most_common():
+        tok.add_row(str(count), name)
+    console.print(tok)
+    for row in candidates[:_DISPLAY_CANDIDATE_LIMIT]:
+        detail = f"; markers={row['markers'].replace('|', ', ')}" if row["markers"] else ""
+        console.print(f"  {row['path']}  ->  {row['candidate_classes'].replace('|', ', ')}{detail}")
+    if (hidden := len(candidates) - _DISPLAY_CANDIDATE_LIMIT) > 0:
+        console.print(f"  ... {hidden} more candidate row(s); inspect the CSV for the complete set")
+
+
 @click.command()
 @click.option(
     "--corpus",
@@ -197,7 +306,9 @@ def _files(corpus: Path, since: date | None) -> list[Path]:
     help="Only scan files under YYYY-MM-DD corpus directories on or after this date.",
 )
 @click.option("--limit", type=int, default=0, help="Scan at most N files (0 = all).")
-def main(corpus: Path, report: Path | None, since, limit: int) -> None:  # noqa: ANN001
+@click.option("--workers", type=click.IntRange(min=1), default=max(1, (os.cpu_count() or 4) - 2), show_default=True)
+@click.option("--restart", is_flag=True, help="Discard this report's checkpoint and scan every selected file again.")
+def main(corpus: Path, report: Path | None, since, limit: int, workers: int, restart: bool) -> None:  # noqa: ANN001
     logging.basicConfig(level=logging.WARNING, format="%(message)s")
     report = report or corpus.parent / "detector_report.csv"
 
@@ -205,78 +316,59 @@ def main(corpus: Path, report: Path | None, since, limit: int) -> None:  # noqa:
     files = _files(corpus, since_date)
     if limit:
         files = files[:limit]
-    console.print(f"Scanning [bold]{len(files)}[/bold] files under {corpus} ...")
-
-    verdicts: Counter[str] = Counter()
-    platforms: Counter[str] = Counter()
-    shapes: Counter[str] = Counter()
-    rows: list[dict[str, str]] = []
-    errors = 0
+    checkpoint = report.with_suffix(report.suffix + ".progress.jsonl")
+    if restart:
+        checkpoint.unlink(missing_ok=True)
+        report.unlink(missing_ok=True)
+    _repair_checkpoint(checkpoint)
     lib_version = version("remove-ai-watermarks")
+    selected = [(path, str(path.relative_to(corpus))) for path in files]
+    selected_paths = {relative for _, relative in selected}
+    completed = {relative: row for relative, row in _read_checkpoint(checkpoint).items() if relative in selected_paths}
+    todo = [(path, relative) for path, relative in selected if relative not in completed]
+    console.print(
+        f"Scanning [bold]{len(files)}[/bold] files under {corpus}: "
+        f"[bold]{len(completed)}[/bold] checkpointed, [bold]{len(todo)}[/bold] remaining, workers {workers}"
+    )
 
-    with click.progressbar(files, label="identify") as bar:
-        for p in bar:
-            rel = str(p.relative_to(corpus))
-            shapes[p.suffix.lower() or "(none)"] += 1
-            try:
-                rep = identify(p)
-            except Exception as exc:
-                log.warning("identify failed on %s: %s", rel, exc)
-                errors += 1
-                row = _base_row(rel, p.suffix.lower(), lib_version)
-                row["candidate_classes"] = "identify_error"
-                row["error"] = f"{type(exc).__name__}: {exc}"[:300]
-                hits = _marker_hits_for_path(p)
-                row["markers"] = "|".join(hits)
-                rows.append(row)
-                continue
-            row = _row(rep, path=rel, suffix=p.suffix.lower(), lib_version=lib_version)
-            # identify() has already populated scan_head's bounded cache, so this
-            # reuses the exact metadata region rather than reading the file again.
-            hits = _marker_hits_for_path(p)
-            classes = _candidate_classes(rep, hits)
-            row["markers"] = "|".join(hits)
-            row["candidate_classes"] = "|".join(classes)
-            rows.append(row)
-            if rep.is_ai_generated:
-                verdicts["ai"] += 1
-                platforms[rep.platform or "?"] += 1
-                continue
-            verdicts["unknown"] += 1
+    checkpoint.parent.mkdir(parents=True, exist_ok=True)
+    with checkpoint.open("a", encoding="utf-8") as stream, ProcessPoolExecutor(max_workers=workers) as executor:
+        work = iter((str(path), relative, lib_version) for path, relative in todo)
 
+        def submit_batch() -> Future[list[dict[str, str]]] | None:
+            batch = tuple(itertools.islice(work, _WORKER_BATCH_SIZE))
+            return executor.submit(_scan_batch, batch) if batch else None
+
+        pending = {future for _ in range(workers * 2) if (future := submit_batch()) is not None}
+        processed = 0
+        next_progress = 500
+        while pending:
+            ready, pending = wait(pending, return_when=FIRST_COMPLETED)
+            for future in ready:
+                for row in future.result():
+                    completed[row["path"]] = row
+                    stream.write(json.dumps(row, ensure_ascii=False) + "\n")
+                    processed += 1
+                if replacement := submit_batch():
+                    pending.add(replacement)
+            stream.flush()
+            if processed >= next_progress:
+                console.print(
+                    f"  {processed}/{len(todo)} new; {len(completed)}/{len(files)} total",
+                    highlight=False,
+                )
+                next_progress += 500
+
+    rows = [completed[relative] for _, relative in selected]
     report.parent.mkdir(parents=True, exist_ok=True)
-    with report.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=REPORT_FIELDS)
+    temporary_report = report.with_suffix(report.suffix + ".tmp")
+    with temporary_report.open("w", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=REPORT_FIELDS)
         writer.writeheader()
         writer.writerows(rows)
+    temporary_report.replace(report)
     console.print(f"\nWrote [bold]{len(rows)}[/bold] rows -> {report}")
-
-    console.print(f"\n[bold]Verdicts:[/bold] AI {verdicts['ai']} | unknown {verdicts['unknown']} | errors {errors}")
-    console.print("[bold]Input shapes:[/bold] " + " | ".join(f"{name} {n}" for name, n in shapes.most_common()))
-    plat = Table(title="AI platforms", show_header=False)
-    for name, n in platforms.most_common():
-        plat.add_row(str(n), name)
-    console.print(plat)
-
-    candidates = [row for row in rows if row["candidate_classes"]]
-    if candidates:
-        candidate_counts = Counter(candidate for row in candidates for candidate in row["candidate_classes"].split("|"))
-        gap_tokens = Counter(marker for row in rows for marker in row["markers"].split("|") if marker)
-        console.print(
-            f"\n[bold red]Review candidates[/bold red]: {len(candidates)} file(s) "
-            f"({', '.join(f'{name}={n}' for name, n in candidate_counts.most_common())})"
-        )
-        tok = Table(title="metadata markers seen across the run")
-        tok.add_column("count", justify="right")
-        tok.add_column("marker")
-        for name, n in gap_tokens.most_common():
-            tok.add_row(str(n), name)
-        console.print(tok)
-        for row in candidates:
-            detail = f"; markers={row['markers'].replace('|', ', ')}" if row["markers"] else ""
-            console.print(f"  {row['path']}  ->  {row['candidate_classes'].replace('|', ', ')}{detail}")
-    else:
-        console.print("\n[green]No review candidates in this run.[/green]")
+    _summarize(rows)
 
 
 if __name__ == "__main__":

@@ -92,8 +92,9 @@ The inspection and stripping code handles signals in these groups:
   MP4/MOV `moov.udta.meta.keys/ilst`, MKV/WebM
   `Segment.Tags.Tag.SimpleTag`, AVI `LIST/INFO/AIGC`, and FLV
   `script.onMetaData.AIGC` placements;
-- xAI and Grok EXIF signature fields in ordinary EXIF and ImageMagick PNG raw
-  EXIF profiles;
+- xAI and Grok signature-plus-UUID pairs in ordinary EXIF, ImageMagick PNG raw
+  EXIF profiles, XMP description/creator fields, PNG Description/Author text,
+  and IPTC Caption-Abstract/By-line fields;
 - Samsung AI editing markers;
 - Hugging Face job metadata;
 - open Stable Diffusion style DWT-DCT watermarks with the `detect` extra;

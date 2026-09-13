@@ -183,6 +183,17 @@ class TestPlacementsTheRecordCouldDrop:
         assert "xai_signature" in {s.name for s in identify(path, check_visible=False, check_invisible=False).signals}
         _assert_same_verdict(path)
 
+    def test_a_container_native_xai_pair_survives(self, tmp_path: Path):
+        """The portable record must preserve xAI pairs moved out of EXIF."""
+        info = PngInfo()
+        info.add_text("Description", "Signature: " + "A" * 80)
+        info.add_text("Author", "3f2504e0-4f89-11d3-9a0c-0305e82c3301")
+        path = tmp_path / "grok-text.png"
+        Image.fromarray(np.zeros((64, 64, 3), dtype=np.uint8)).save(path, "PNG", pnginfo=info)
+
+        assert "xai_signature" in {s.name for s in identify(path, check_visible=False, check_invisible=False).signals}
+        _assert_same_verdict(path)
+
     def test_isobmff_generation_tags_survive(self, tmp_path: Path):
         def box(kind: bytes, payload: bytes) -> bytes:
             return (8 + len(payload)).to_bytes(4, "big") + kind + payload

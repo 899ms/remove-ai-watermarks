@@ -281,8 +281,9 @@ def _exif_pairs(info: dict[str, Any]) -> dict[str, str]:
     """The 0th-IFD tags the verdict reads, under their tag NAMES.
 
     Not a convenience: two probes key on names rather than on the raw bytes already
-    in the regions. ``xai_signature_pair`` wants an (ImageDescription, Artist) pair,
-    and ``_external_exif_generator`` looks for Software / Make / Artist /
+    in the regions. The original xAI shape needs an (ImageDescription, Artist) pair
+    (container-native pairs arrive through ``pil`` or structured regions), and
+    ``_external_exif_generator`` looks for Software / Make / Artist /
     ImageDescription. Ship the bytes alone and both silently return nothing, which
     is how a collector can silently lose Grok and NovelAI verdicts.
     """

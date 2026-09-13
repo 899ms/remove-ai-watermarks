@@ -527,7 +527,7 @@ def has_ai_metadata(image_path: Path) -> bool:
     # Hugging Face-hosted job marker (hf-job-id PNG text chunk).
     if huggingface_job(image_path):
         return True
-    # xAI / Grok: no C2PA/IPTC/XMP -- only the EXIF Signature + UUID-Artist pair.
+    # xAI / Grok signature + UUID pair, including container-native transcodes.
     return xai_signature(image_path)
 
 
@@ -1052,11 +1052,120 @@ def exif_generator(image_path: Path) -> str | None:
 # pair xAI-specific -- both required keeps the false-positive rate near zero.
 _XAI_SIGNATURE_RE = re.compile(r"Signature:\s*[A-Za-z0-9+/=]{64,}")
 _UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.IGNORECASE)
+_RDF_DESCRIPTION_RE = re.compile(rb"<rdf:Description\b[^>]*>.*?</rdf:Description>", re.IGNORECASE | re.DOTALL)
+_XMP_DESCRIPTION_RE = re.compile(
+    rb"(?:<dc:description\b[^>]*>(.*?)</dc:description>|\bdc:description=[\"']([^\"']*)[\"'])",
+    re.IGNORECASE | re.DOTALL,
+)
+_XMP_CREATOR_RE = re.compile(
+    rb"(?:<dc:creator\b[^>]*>(.*?)</dc:creator>|\bdc:creator=[\"']([^\"']*)[\"'])",
+    re.IGNORECASE | re.DOTALL,
+)
 
 
 def xai_signature_pair(description: str, artist: str) -> bool:
-    """True if an EXIF (ImageDescription, Artist) pair is xAI/Grok's scheme."""
+    """True if a description/creator pair has xAI/Grok's two value shapes."""
     return _XAI_SIGNATURE_RE.match(description) is not None and _UUID_RE.fullmatch(artist) is not None
+
+
+def _decoded_xai_signature_pair(description: bytes, creator: bytes) -> bool:
+    description = re.sub(rb"<[^>]+>", b"", description).strip()
+    creator = re.sub(rb"<[^>]+>", b"", creator).strip()
+    return xai_signature_pair(
+        description.decode("utf-8", "replace").strip(),
+        creator.decode("utf-8", "replace").strip(),
+    )
+
+
+def _xmp_xai_signature_pair(data: bytes) -> bool:
+    """Match the two xAI values only inside the same RDF description."""
+    for block_match in _RDF_DESCRIPTION_RE.finditer(data):
+        block = block_match.group()
+        descriptions = [
+            next(value for value in match.groups() if value is not None)
+            for match in _XMP_DESCRIPTION_RE.finditer(block)
+        ]
+        creators = [
+            next(value for value in match.groups() if value is not None) for match in _XMP_CREATOR_RE.finditer(block)
+        ]
+        if any(
+            _decoded_xai_signature_pair(description, creator) for description in descriptions for creator in creators
+        ):
+            return True
+    return False
+
+
+def _iptc_dataset_values(data: bytes, dataset: int) -> list[bytes]:
+    """Return bounded IPTC application-record values for one dataset number."""
+    values: list[bytes] = []
+    marker = bytes((0x1C, 0x02, dataset))
+    start = 0
+    while (index := data.find(marker, start)) >= 0:
+        length_start = index + len(marker)
+        if length_start + 2 > len(data):
+            break
+        length = int.from_bytes(data[length_start : length_start + 2], "big")
+        value_start = length_start + 2
+        value_end = value_start + length
+        if value_end <= len(data) and length <= 4096:
+            values.append(data[value_start:value_end])
+        start = length_start
+    return values
+
+
+def _iptc_xai_signature_pair(data: bytes) -> bool:
+    descriptions = _iptc_dataset_values(data, 120)  # Caption-Abstract
+    creators = _iptc_dataset_values(data, 80)  # By-line
+    # Some metadata exports retain the field names instead of the binary dataset
+    # headers. Keep that observed representation precise by anchoring each value to
+    # its field label.
+    descriptions += re.findall(rb"Caption-Abstract\x00([^\x00]{1,4096})", data, re.IGNORECASE)
+    creators += re.findall(rb"By-line\x00([^\x00]{1,4096})", data, re.IGNORECASE)
+    return any(
+        _decoded_xai_signature_pair(description, creator) for description in descriptions for creator in creators
+    )
+
+
+def _jpeg_app_payloads(data: bytes) -> list[tuple[int, bytes]]:
+    """Extract complete XMP/IPTC APP payloads from a JPEG or concatenated regions."""
+    payloads: list[tuple[int, bytes]] = []
+    position = 2 if data.startswith(b"\xff\xd8") else 0
+    while position + 4 <= len(data):
+        if data[position] != 0xFF:
+            break
+        marker = data[position + 1]
+        if marker in (0xDA, 0xD9):  # SOS / EOI
+            break
+        if 0xD0 <= marker <= 0xD7 or marker == 0x01:
+            position += 2
+            continue
+        length = int.from_bytes(data[position + 2 : position + 4], "big")
+        end = position + 2 + length
+        if length >= 2 and end <= len(data):
+            if marker in (0xE1, 0xED):
+                payloads.append((marker, data[position + 4 : end]))
+            position = end
+        else:
+            break
+    return payloads
+
+
+def xai_signature_in_metadata(data: bytes) -> bool:
+    """True when one metadata record carries xAI's paired provenance fields.
+
+    Editors preserve the same two values under equivalent container-native fields:
+    XMP ``dc:description``/``dc:creator`` and IPTC
+    ``Caption-Abstract``/``By-line``. Values must be attached to the confirmed field
+    names inside one APP segment or RDF description; an unrelated XMP UUID must not
+    complete the pair.
+    """
+    payloads = _jpeg_app_payloads(data)
+    if payloads:
+        return any(
+            _xmp_xai_signature_pair(payload) if marker == 0xE1 else _iptc_xai_signature_pair(payload)
+            for marker, payload in payloads
+        )
+    return _xmp_xai_signature_pair(data) or _iptc_xai_signature_pair(data)
 
 
 def _exif_text(ifd: dict[int, Any], tag: int) -> str:
@@ -1066,33 +1175,51 @@ def _exif_text(ifd: dict[int, Any], tag: int) -> str:
 
 
 def _xai_signature_impl(image_path: Path) -> bool:
-    """Detect xAI / Grok's EXIF provenance signature scheme.
+    """Detect xAI / Grok's provenance signature scheme.
 
-    Grok image downloads (Aurora model) carry no C2PA, XMP, SynthID, or IPTC --
-    their only provenance signal is a private EXIF pair: ``ImageDescription`` =
-    ``"Signature: <base64>"`` together with ``Artist`` = the image UUID. Verified
-    stable across three independent generations (2026-05-26; see CLAUDE.md). The
-    signature is xAI's and is not locally verifiable (no public key); detection
-    keys on this distinctive, low-false-positive shape, not on the signature's
-    validity. It survives only on the *original* JPEG download -- the web-UI
-    image is a re-encoded WebP that drops EXIF.
+    Legacy Grok/Aurora downloads use a private EXIF pair: ``ImageDescription`` =
+    ``"Signature: <base64>"`` together with ``Artist`` = the image UUID. Metadata-
+    preserving editors can move that exact pair into XMP, PNG text, or IPTC fields.
+    The signature is not locally verifiable (no public key); detection keys on both
+    distinctive shapes, not on the signature's validity.
     """
+    decoded_pair = False
     try:
         import piexif
         from PIL import Image
+        from PIL.IptcImagePlugin import getiptcinfo
 
         with Image.open(image_path) as img:
             exif_bytes = exif_bytes_from_image(img)
-        if not exif_bytes:
-            return False
-        tags = piexif.load(exif_bytes).get("0th", {})
+            descriptions = [img.info.get(key) for key in ("Description", "ImageDescription")]
+            creators = [img.info.get(key) for key in ("Author", "Artist", "Creator")]
+            decoded_pair = any(
+                xai_signature_pair(description, creator)
+                for description in descriptions
+                if isinstance(description, str)
+                for creator in creators
+                if isinstance(creator, str)
+            )
+            if iptc := getiptcinfo(img):
+                caption = iptc.get((2, 120), b"")
+                byline = iptc.get((2, 80), b"")
+                if isinstance(caption, bytes) and isinstance(byline, bytes):
+                    decoded_pair = decoded_pair or _decoded_xai_signature_pair(caption, byline)
+        if exif_bytes:
+            tags = piexif.load(exif_bytes).get("0th", {})
+            decoded_pair = decoded_pair or xai_signature_pair(
+                _exif_text(tags, piexif.ImageIFD.ImageDescription),
+                _exif_text(tags, piexif.ImageIFD.Artist),
+            )
     except Exception as exc:  # unopenable format / malformed EXIF
         logger.debug("xAI-signature EXIF read failed for %s: %s", image_path, exc)
+    if decoded_pair:
+        return True
+    try:
+        return xai_signature_in_metadata(scan_head(image_path))
+    except OSError as exc:
+        logger.debug("xAI-signature metadata scan failed for %s: %s", image_path, exc)
         return False
-
-    return xai_signature_pair(
-        _exif_text(tags, piexif.ImageIFD.ImageDescription), _exif_text(tags, piexif.ImageIFD.Artist)
-    )
 
 
 def _is_aigc_exif_value(raw: object) -> bool:
@@ -1276,9 +1403,9 @@ def get_ai_metadata(image_path: Path) -> dict[str, str]:
     if app_generator:
         result.setdefault("app_aigc", f"App AIGC disclosure ({app_generator})")
 
-    # xAI / Grok EXIF signature scheme (its only provenance signal).
+    # xAI / Grok signature pair in EXIF or an equivalent container-native field.
     if xai_signature(image_path):
-        result.setdefault("xai_signature", "xAI/Grok EXIF signature (Artist UUID + Signature blob)")
+        result.setdefault("xai_signature", "xAI/Grok signature (UUID + Signature blob)")
 
     # IPTC 2025.1 AI-disclosure XMP fields (Iptc4xmpExt:AISystemUsed etc.).
     if system := iptc_ai_system(image_path):
@@ -1359,12 +1486,15 @@ def _jpeg_app_carries_ai(marker: int, payload: bytes) -> bool:
             or any(m in payload for m in AIGC_MARKERS)
             or any(m in payload for m in IPTC_AI_MARKERS)
             or any(m in payload for m in IPTC_AI_FIELD_MARKERS)
+            or xai_signature_in_metadata(payload)
         )
     ):
         return True
     # IPTC "Made with AI" record (APP13).
     if marker == 0xED and (
-        any(m in payload for m in IPTC_AI_MARKERS) or any(m in payload for m in IPTC_AI_FIELD_MARKERS)
+        any(m in payload for m in IPTC_AI_MARKERS)
+        or any(m in payload for m in IPTC_AI_FIELD_MARKERS)
+        or xai_signature_in_metadata(payload)
     ):
         return True
     # A bare / wrapped China TC260 AIGC block (``AIGC{...}`` or ``{"AIGC":{...}}``) glued
@@ -1480,6 +1610,7 @@ def _strip_png_metadata_lossless(source_path: Path, output_path: Path, keep_stan
     data = source_path.read_bytes()
     if not data.startswith(PNG_SIGNATURE):
         return False
+    source_has_xai_pair = xai_signature(source_path)
     out = bytearray(PNG_SIGNATURE)
     view = memoryview(data)
     pos, n = 8, len(data)
@@ -1502,7 +1633,13 @@ def _strip_png_metadata_lossless(source_path: Path, output_path: Path, keep_stan
                     + scrubbed
                     + struct.pack(">I", zlib.crc32(b"eXIf" + scrubbed))
                 )
-        elif not _png_chunk_should_be_dropped(chunk_type, payload, keep_standard, png_text_decode):
+        elif not _png_chunk_should_be_dropped(
+            chunk_type,
+            payload,
+            keep_standard,
+            png_text_decode,
+            xai_pair_present=source_has_xai_pair,
+        ):
             out += view[pos:end]
         if chunk_type == b"IEND":
             break
@@ -1534,13 +1671,32 @@ def _scrubbed_png_exif(payload: bytes) -> bytes | None:
         return None
 
 
-def _keep_standard_text_metadata(key: str, value: object, keep_standard: bool) -> bool:
+def _xai_text_pair_member(key: str, value: object) -> bool:
+    """Whether one standard text item is a member of an already-proven xAI pair."""
+    if not isinstance(value, str):
+        return False
+    normalized = key.lower().replace("-", "").replace("_", "")
+    if normalized in {"description", "imagedescription", "captionabstract"}:
+        return _XAI_SIGNATURE_RE.search(value) is not None
+    if normalized in {"author", "artist", "creator", "byline"}:
+        return _UUID_RE.fullmatch(value.strip()) is not None
+    return False
+
+
+def _keep_standard_text_metadata(
+    key: str,
+    value: object,
+    keep_standard: bool,
+    *,
+    xai_pair_present: bool = False,
+) -> bool:
     """Whether a text metadata item is standard and free of AI provenance."""
     return (
         keep_standard
         and key in STANDARD_METADATA_KEYS
         and not _is_ai_key(key)
         and not (isinstance(value, str) and (_is_ai_value(value) or _is_aigc_exif_value(value)))
+        and not (xai_pair_present and _xai_text_pair_member(key, value))
     )
 
 
@@ -1549,6 +1705,8 @@ def _png_chunk_should_be_dropped(
     payload: bytes,
     keep_standard: bool,
     decode: Callable[[str, bytes], str],
+    *,
+    xai_pair_present: bool = False,
 ) -> bool:
     """True when a PNG chunk must be dropped by the lossless strip.
 
@@ -1565,7 +1723,12 @@ def _png_chunk_should_be_dropped(
     if chunk_type not in (b"tEXt", b"zTXt", b"iTXt"):
         return False
     keyword, _, text = decode(chunk_type.decode("ascii"), payload).partition("\x00")
-    return not _keep_standard_text_metadata(keyword, text, keep_standard)
+    return not _keep_standard_text_metadata(
+        keyword,
+        text,
+        keep_standard,
+        xai_pair_present=xai_pair_present,
+    )
 
 
 # Fallback extension -> PIL save format, used only when the content sniff is
@@ -1771,6 +1934,7 @@ def remove_ai_metadata(
     # Read image and filter metadata
     with Image.open(source_path) as source_image:
         source_exif_bytes = exif_bytes_from_image(source_image)
+        source_has_xai_pair = xai_signature(source_path)
         img = source_image.copy()
         # Pick the save format. Honor the caller's output extension (so a deliberate
         # source.png -> output.jpg conversion still works) UNLESS the SOURCE is misnamed
@@ -1815,7 +1979,12 @@ def remove_ai_metadata(
                 continue
             # NovelAI and TC260 can stamp AI provenance into standard Title/Source/
             # Description fields. Share this decision with the lossless PNG walker.
-            if _keep_standard_text_metadata(key, value, keep_standard):
+            if _keep_standard_text_metadata(
+                key,
+                value,
+                keep_standard,
+                xai_pair_present=source_has_xai_pair,
+            ):
                 kept_meta[key] = str(value) if not isinstance(value, str) else value
 
         if source_exif_bytes:

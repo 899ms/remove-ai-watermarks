@@ -66,6 +66,7 @@ from remove_ai_watermarks.metadata import (
     samsung_genai_in,
     scan_head,
     xai_signature,
+    xai_signature_in_metadata,
     xai_signature_pair,
 )
 from remove_ai_watermarks.watermark_registry import GEMINI_SPARKLE_TRUST_CONF
@@ -419,10 +420,16 @@ def evidence_from_metadata_record(
     values_by_key: dict[str, str] = {}
     for key, value in pairs:
         if isinstance(value, (bytes, str)):
-            values_by_key.setdefault(key.lower(), _external_text(value))
-    description = values_by_key.get("imagedescription", "")
-    artist = values_by_key.get("artist", "")
-    xai = xai_signature_pair(description, artist)
+            values_by_key.setdefault(key.lower().removeprefix("info:"), _external_text(value))
+    xai = any(
+        xai_signature_pair(values_by_key.get(description_key, ""), values_by_key.get(creator_key, ""))
+        for description_key, creator_key in (
+            ("imagedescription", "artist"),
+            ("description", "author"),
+            ("description", "creator"),
+            ("caption-abstract", "by-line"),
+        )
+    ) or xai_signature_in_metadata(scan)
 
     hf_job = next(
         (
@@ -446,7 +453,7 @@ def evidence_from_metadata_record(
             f"China AIGC label (TC260){f'; producer {producer}' if producer else ''}",
         )
     if xai:
-        ai_metadata.setdefault("xai_signature", "xAI/Grok EXIF signature (Artist UUID + Signature blob)")
+        ai_metadata.setdefault("xai_signature", "xAI/Grok signature (UUID + Signature blob)")
     if iptc_system:
         ai_metadata.setdefault("ai_system", f"IPTC 2025.1 AI disclosure ({iptc_system})")
     if hf_job:
@@ -1424,13 +1431,12 @@ def _identify_from_evidence(
         if v := _vendor_of(generator_tag):
             ai_vendor_claims["exif_generator"] = v
 
-    # ── xAI / Grok EXIF signature scheme (no C2PA/SynthID/IPTC) ──────
-    # Grok's only provenance signal: EXIF ImageDescription "Signature: <base64>"
-    # + a UUID Artist. Distinct from exif_generator (which matches generator
-    # tokens); verified stable across 3 generations. See CLAUDE.md.
+    # ── xAI / Grok signature scheme ───────────────────────────────────
+    # The original EXIF pair can move into equivalent XMP, PNG text, or IPTC
+    # fields during a metadata-preserving transcode. Neither shape alone is enough.
     if evidence.xai_signature:
-        signals.append(Signal("xai_signature", "EXIF Signature blob + UUID Artist", "high"))
-        watermarks.append("xAI/Grok EXIF signature")
+        signals.append(Signal("xai_signature", "Signature blob + UUID provenance pair", "high"))
+        watermarks.append("xAI/Grok provenance signature")
         if platform is None:
             platform = "xAI (Grok / Aurora)"
         ai_vendor_claims["xai"] = "xAI"

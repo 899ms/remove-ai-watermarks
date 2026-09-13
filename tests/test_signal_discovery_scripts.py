@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from datetime import date
 from pathlib import Path
@@ -52,6 +53,49 @@ def test_since_filter_uses_corpus_date_directories(tmp_path):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.touch()
     assert gap._files(tmp_path, date(2026, 9, 10)) == [current]
+
+
+def test_gap_checkpoint_keeps_complete_rows_and_ignores_a_torn_tail(tmp_path):
+    checkpoint = tmp_path / "report.csv.progress.jsonl"
+    row = gap._base_row("2026-09-10/example.png", ".png", "1.2.3")
+    checkpoint.write_text(json.dumps(row) + '\n{"path":"torn', encoding="utf-8")
+
+    assert gap._read_checkpoint(checkpoint) == {row["path"]: row}
+
+    gap._repair_checkpoint(checkpoint)
+    second = gap._base_row("2026-09-10/second.png", ".png", "1.2.3")
+    with checkpoint.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(second) + "\n")
+
+    assert gap._read_checkpoint(checkpoint) == {row["path"]: row, second["path"]: second}
+
+
+def test_gap_worker_error_is_a_complete_resumable_row(monkeypatch, tmp_path):
+    path = tmp_path / "bad.bin"
+    path.write_bytes(b"not an image")
+    calls = []
+
+    def fail(_path, **kwargs):
+        calls.append(kwargs)
+        raise ValueError("broken\ninput")
+
+    monkeypatch.setattr(gap, "identify", fail)
+    row = gap._scan_one((str(path), "bad.bin", "1.2.3"))
+
+    assert set(row) == set(gap.REPORT_FIELDS)
+    assert row["candidate_classes"] == "identify_error"
+    assert row["error"] == "ValueError: broken input"
+    assert calls == [{"check_visible": False, "check_invisible": False}]
+
+
+def test_gap_summary_does_not_report_a_negative_hidden_count(capsys):
+    row = gap._base_row("candidate.png", ".png", "1.2.3")
+    row["candidate_classes"] = "blind_marker"
+
+    gap._summarize([row])
+
+    output = capsys.readouterr()
+    assert "more candidate row" not in output.out + output.err
 
 
 def test_sidecar_regression_prefers_stable_signal_names():

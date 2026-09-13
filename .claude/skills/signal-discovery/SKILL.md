@@ -58,7 +58,10 @@ finding.
 3. Run the applicable fresh and historical discovery modes from the reference.
    Use `corpus_gap_scan.py --since YYYY-MM-DD` for the overlapping fresh window
    and omit `--since` for the complete history. Report counts per input shape
-   and per outcome; an example does not establish coverage.
+   and per outcome; an example does not establish coverage. Give every code and
+   corpus snapshot a distinct `--report` path. The adjacent
+   `.progress.jsonl` checkpoint is the live progress source and makes the same
+   command resumable; use `--restart` only when intentionally discarding it.
 4. Triage every candidate into one of: parser/serialization gap, missing vendor
    attribution, new visible mark, possible invisible signal, format/read error,
    expected non-AI provenance, or false candidate. Preserve unresolved items as

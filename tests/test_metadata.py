@@ -1021,7 +1021,25 @@ def _grok_imagemagick_png(tmp_path: Path) -> Path:
 
 
 class TestXaiSignature:
-    """xAI / Grok's EXIF Signature + UUID-Artist provenance scheme."""
+    """xAI / Grok's Signature + UUID provenance scheme across metadata containers."""
+
+    @staticmethod
+    def _png_text_pair(tmp_path: Path) -> Path:
+        info = PngInfo()
+        info.add_text("Description", f"Signature: {_FAKE_SIG}")
+        info.add_text("Author", _FAKE_UUID)
+        path = tmp_path / "grok-text.png"
+        Image.new("RGB", (64, 64), (30, 40, 50)).save(path, pnginfo=info)
+        return path
+
+    @staticmethod
+    def _jpeg_app_pair(tmp_path: Path, marker: bytes, payload: bytes, name: str) -> Path:
+        path = tmp_path / name
+        Image.new("RGB", (64, 64), (30, 40, 50)).save(path, "JPEG")
+        data = path.read_bytes()
+        segment = marker + (len(payload) + 2).to_bytes(2, "big") + payload
+        path.write_bytes(data[:2] + segment + data[2:])
+        return path
 
     def test_signature_plus_uuid_detected(self, tmp_path: Path):
         assert xai_signature(_grok_jpeg(tmp_path)) is True
@@ -1035,6 +1053,79 @@ class TestXaiSignature:
 
         assert xai_signature(path) is True
         assert "xai_signature" in get_ai_metadata(path)
+
+    def test_png_description_and_author_pair_detected_and_stripped(self, tmp_path: Path):
+        path = self._png_text_pair(tmp_path)
+
+        assert xai_signature(path) is True
+        assert "xai_signature" in get_ai_metadata(path)
+
+        out = tmp_path / "clean.png"
+        remove_ai_metadata(path, out)
+
+        assert xai_signature(out) is False
+        with Image.open(out) as image:
+            assert "Description" not in image.info
+            assert "Author" not in image.info
+
+    def test_xmp_description_and_creator_pair_detected_and_stripped(self, tmp_path: Path):
+        payload = (
+            b"http://ns.adobe.com/xap/1.0/\x00"
+            b'<rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/">'
+            b"<dc:description>Signature: "
+            + _FAKE_SIG.encode()
+            + b"</dc:description><dc:creator>"
+            + _FAKE_UUID.encode()
+            + b"</dc:creator></rdf:Description>"
+        )
+        path = self._jpeg_app_pair(tmp_path, b"\xff\xe1", payload, "grok-xmp.jpg")
+
+        assert xai_signature(path) is True
+        out = tmp_path / "clean-xmp.jpg"
+        remove_ai_metadata(path, out)
+
+        assert xai_signature(out) is False
+        assert _FAKE_SIG.encode() not in out.read_bytes()
+        assert _FAKE_UUID.encode() not in out.read_bytes()
+
+    def test_xmp_signature_does_not_pair_with_an_unrelated_uuid(self, tmp_path: Path):
+        payload = (
+            b"http://ns.adobe.com/xap/1.0/\x00"
+            b'<rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/" '
+            b'xmp:InstanceID="xmp.iid:'
+            + _FAKE_UUID.encode()
+            + b'"><dc:description>Signature: '
+            + _FAKE_SIG.encode()
+            + b"</dc:description></rdf:Description>"
+        )
+        path = self._jpeg_app_pair(tmp_path, b"\xff\xe1", payload, "unrelated-xmp-uuid.jpg")
+
+        assert xai_signature(path) is False
+
+    def test_xmp_values_in_different_descriptions_do_not_form_a_pair(self, tmp_path: Path):
+        payload = (
+            b"http://ns.adobe.com/xap/1.0/\x00"
+            b"<rdf:Description><dc:description>Signature: "
+            + _FAKE_SIG.encode()
+            + b"</dc:description></rdf:Description>"
+            b"<rdf:Description><dc:creator>" + _FAKE_UUID.encode() + b"</dc:creator></rdf:Description>"
+        )
+        path = self._jpeg_app_pair(tmp_path, b"\xff\xe1", payload, "split-xmp-pair.jpg")
+
+        assert xai_signature(path) is False
+
+    def test_iptc_caption_and_byline_pair_detected_and_stripped(self, tmp_path: Path):
+        payload = b"Photoshop 3.0\x00Caption-Abstract\x00Signature: " + _FAKE_SIG.encode()
+        payload += b"\x00By-line\x00" + _FAKE_UUID.encode()
+        path = self._jpeg_app_pair(tmp_path, b"\xff\xed", payload, "grok-iptc.jpg")
+
+        assert xai_signature(path) is True
+        out = tmp_path / "clean-iptc.jpg"
+        remove_ai_metadata(path, out)
+
+        assert xai_signature(out) is False
+        assert _FAKE_SIG.encode() not in out.read_bytes()
+        assert _FAKE_UUID.encode() not in out.read_bytes()
 
     def test_real_grok_sample_detected(self):
         # Real committed Grok download (data/fixtures/provenance/grok-1.jpg); the EXIF
@@ -1055,6 +1146,18 @@ class TestXaiSignature:
     def test_short_signature_text_not_flagged(self, tmp_path: Path):
         # Incidental short "Signature: ..." text is below the 64-char base64 bar.
         assert xai_signature(_grok_jpeg(tmp_path, signature="ok")) is False
+
+    def test_png_signature_without_uuid_is_preserved(self, tmp_path: Path):
+        info = PngInfo()
+        info.add_text("Description", f"Signature: {_FAKE_SIG}")
+        path = tmp_path / "signature-only.png"
+        Image.new("RGB", (64, 64)).save(path, pnginfo=info)
+
+        assert xai_signature(path) is False
+        out = tmp_path / "signature-only-clean.png"
+        remove_ai_metadata(path, out)
+        with Image.open(out) as image:
+            assert image.info["Description"] == f"Signature: {_FAKE_SIG}"
 
     def test_clean_image_is_false(self, tmp_clean_png: Path):
         assert xai_signature(tmp_clean_png) is False
