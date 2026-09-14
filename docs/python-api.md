@@ -153,6 +153,32 @@ engine's own parameter names and defaults. `force`, which decides whether the
 engine runs at all, is a parameter of `remove_all` and `remove_batch` alongside
 `backend` and `sensitivity`.
 
+Specialized callers can inspect or apply the clean-room local Paint pixel
+operation directly. This is deliberately separate from the high-level diffusion
+route. Passing the UUID signed in pristine C2PA makes agreement with that UUID a
+write precondition:
+
+```python
+from remove_ai_watermarks.microsoft_invismark import (
+    detect_local_invismark,
+    disrupt_local_invismark,
+    invismark_id_from_c2pa,
+)
+
+expected = invismark_id_from_c2pa("paint.png")
+detection = detect_local_invismark("paint.png")
+if expected is not None and detection is not None:
+    result = disrupt_local_invismark(
+        "paint.png",
+        "clean.png",
+        expected_watermark_id=expected,
+    )
+```
+
+The direct call needs the `pixels` extra. It writes atomically only after the
+encoded output no longer decodes as a valid local payload. The result does not
+claim acceptance by a proprietary Microsoft detector.
+
 The complete field set, with the shipped defaults:
 
 | Field | Default | Effect |

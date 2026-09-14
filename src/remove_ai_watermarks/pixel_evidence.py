@@ -48,6 +48,7 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from remove_ai_watermarks._internal.image_math import dct_matrix as _dct_matrix
 from remove_ai_watermarks._internal.schema import require_schema_version
 
 if TYPE_CHECKING:
@@ -146,15 +147,6 @@ def _numpy() -> Any:
     import numpy as np
 
     return np
-
-
-def _dct_matrix(np: Any, n: int = 8) -> Any:
-    """Orthonormal n x n DCT-II basis: M[i, j] = cos(pi (2j + 1) i / 2n)."""
-    i = np.arange(n)[:, None]
-    j = np.arange(n)[None, :]
-    m = np.cos(np.pi * (2 * j + 1) * i / (2 * n))
-    m[0, :] *= 1 / np.sqrt(2)
-    return m * np.sqrt(2 / n)
 
 
 def read_gray(image_path: Path) -> tuple[Any, Any, dict[str, Any]]:

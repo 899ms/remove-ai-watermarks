@@ -484,6 +484,19 @@ not added to the watermark inventory, do not trigger pixel regeneration, and do
 not suppress independently established SynthID watermark evidence. A registered
 watermark or an unknown soft-binding algorithm keeps that inference fail-safe.
 
+The local Paint reader treats C2PA as corroboration, not as the pixel detector.
+It extracts 4-by-4 blocks from the luminance Haar LL plane, reads the largest
+singular-value residue of the 15 DCT AC coefficients, and votes over the repeating
+12-by-12 map. A payload is actionable only when every bit has at least three
+supporting carriers and the `0x4c` prefix and GUID checksum validate. A caller can
+also require the decoded Windows-order GUID to equal the one in pristine C2PA.
+Direct disruption moves each confirmed carrier to the opposite residue center,
+encodes to a temporary file, and re-runs the reader before atomically publishing
+it. Any missing or ambiguous
+condition returns no detection so a caller can retain its existing fallback. The
+implementation contains no Microsoft binary, PDB data, or extracted writer-quality
+forest.
+
 The SDK default enables trust verification but supplies no production trust
 anchors. Consequently, an installation without an explicitly maintained C2PA
 trust bundle reports every otherwise valid signer chain as untrusted --

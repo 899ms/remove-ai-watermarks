@@ -94,11 +94,13 @@ Transformers cannot construct the Chroma tokenizer. It includes the `diffusion`
 dependencies; `diffusion` on its own covers the torch and diffusers imports but
 not the face stage or Chroma tokenizer, so it is not enough to run a removal.
 
-**An NVIDIA GPU is required.** `qwen-zimage`, `sdxl-zimage` and `chroma-zimage`
-are CUDA-only, and
+**An NVIDIA GPU is required for the diffusion profiles.** `qwen-zimage`,
+`sdxl-zimage` and `chroma-zimage` are CUDA-only, and
 construction refuses any other device rather than falling back to a slow or broken
-one. There is no CPU, MPS or XPU path for invisible-watermark removal. Visible-mark
-removal, metadata stripping and every `identify` command still run anywhere.
+one. There is no CPU, MPS or XPU path for those profiles. The specialized API for
+the validated local Microsoft Paint format uses the `pixels` extra and no GPU.
+Visible-mark removal, metadata stripping and every `identify` command still run
+anywhere.
 
 Video SynthID regeneration is a separate VAE path and does still run on CPU or MPS;
 it needs the `diffusion` extra, not this one.
@@ -119,7 +121,7 @@ application actually uses:
 
 | Extra | Capability | Automatically includes | Torch or model download |
 | --- | --- | --- | --- |
-| `pixels` | Shared BGR image runtime | NumPy, headless OpenCV | No |
+| `pixels` | Shared BGR image runtime and direct local Paint InvisMark disruption | NumPy, headless OpenCV | No |
 | `heif` | HEIC, HEIF, and AVIF pixel decoding | pillow-heif | No |
 | `visible` | Visible mark detection, OpenCV inpainting, and manual erasing | `pixels` | No |
 | `video` | Visible video identification/removal and timestamp preservation | `visible`, PyAV | No |

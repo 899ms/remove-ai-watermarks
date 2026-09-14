@@ -3,7 +3,7 @@
 Remove AI provenance marks from images and video you generated yourself:
 
 - known visible labels such as the Google Gemini sparkle watermark and vendor text marks;
-- invisible pixel watermarks through diffusion regeneration;
+- invisible pixel watermarks through direct local-format disruption or diffusion regeneration;
 - C2PA, EXIF, XMP, IPTC, and related AI metadata.
 
 Video support covers provenance identification, complete visible-plus-metadata
@@ -49,7 +49,9 @@ removal.
 
 Microsoft Paint and Photos InvisMark declarations are routed automatically to
 pixel regeneration. The `all` command removes both the hidden pixel watermark and
-its linked C2PA manifest; metadata stripping alone removes only the manifest.
+its linked C2PA manifest; metadata stripping alone removes only the manifest. A
+specialized Python API can inspect and disrupt the validated local
+`Watermarker.dll` payload without diffusion.
 
 ## Installation modes
 
@@ -61,6 +63,7 @@ its linked C2PA manifest; metadata stripping alone removes only the manifest.
 | Visible video processing | `remove-ai-watermarks[video]` |
 | Video SynthID removal | `remove-ai-watermarks[video,diffusion]` |
 | Torch-free DWT-DCT detection | `remove-ai-watermarks[detect]` |
+| Direct local Paint InvisMark disruption | `remove-ai-watermarks[pixels]` |
 | Invisible image removal (needs CUDA) | `remove-ai-watermarks[qwen-zimage]` |
 | Every production feature available on the active Python | `remove-ai-watermarks[all]` |
 
@@ -213,8 +216,10 @@ is not a product result state. The CLI therefore describes video-pixel
 regeneration instead of claiming a per-file SynthID verdict, and reports the
 copied audio watermark as `UNVERIFIED`.
 
-For invisible watermark removal, install the `qwen-zimage` extra. **An NVIDIA GPU
-is required**: all profiles are CUDA-only, and there is no CPU or MPS fallback.
+For invisible watermark removal through the CLI or high-level API, install the
+`qwen-zimage` extra. **An NVIDIA GPU is required**: all diffusion profiles are
+CUDA-only, and there is no CPU or MPS fallback. The specialized local Paint API
+uses the `pixels` extra without CUDA.
 
 ```bash
 uv tool install --force "remove-ai-watermarks[qwen-zimage]"
@@ -375,10 +380,10 @@ and keyed generation parameters are blanked without changing box sizes or
 media offsets. Other supported containers use their corresponding metadata
 path.
 
-Invisible removal is different. It regenerates the image through a diffusion
-pipeline to disrupt pixel and frequency domain watermarks. This changes the
-image and cannot guarantee that a proprietary verifier will reject every
-output.
+Invisible removal through the CLI and high-level API regenerates the image through
+a diffusion pipeline. Specialized callers can instead decode and disrupt the
+positively identified local Microsoft Paint format with much smaller pixel changes.
+Neither path can guarantee that every proprietary verifier will reject every output.
 
 See [supported signals](docs/supported-signals.md) and
 [known limitations](docs/known-limitations.md) for the full technical boundary.
@@ -473,9 +478,10 @@ invisible removal.
   The shipped profile is oracle-certified, but no public local decoder can
   certify an arbitrary output at runtime. Recheck unusually important outputs
   after provider changes.
-- Invisible-watermark removal requires CUDA. All profiles refuse any other
-  device at construction rather than falling back to one that cannot run them.
-  Visible removal, metadata stripping and `identify` still run anywhere.
+- Invisible-watermark removal through the CLI and high-level API requires CUDA.
+  All diffusion profiles refuse any other device at construction rather than
+  falling back to one that cannot run them. The specialized local Paint API,
+  visible removal, metadata stripping and `identify` run without CUDA.
 - Provider watermark systems can change. Validate important outputs with the
   provider's own verifier when one is available.
 

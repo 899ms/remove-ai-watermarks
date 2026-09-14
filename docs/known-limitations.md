@@ -87,11 +87,19 @@ detections in the removed experimental mode.
 
 ## Invisible removal
 
-### Regeneration is lossy
+### Invisible processing changes pixels
 
-Invisible removal does not decode and delete a payload. It regenerates the
+Most invisible removal does not decode and delete a payload. It regenerates the
 image through a diffusion pipeline. Faces, text, colors, and fine detail can
 change even when the watermark is successfully disrupted.
+
+The local Microsoft Paint `Watermarker.dll` format is a narrower exception. Its
+direct path validates the repeated message and can require agreement with the
+signed C2PA UUID before rewriting confirmed carriers without redrawing the image.
+It still changes many pixels slightly, deliberately leaves an inverted periodic
+signal, and has no external detector that recognizes the positive control. The
+supported claim is therefore local payload invalidation, not certified removal by
+Microsoft.
 
 Text, tables, and UI screenshots are the worst case for a forced scrub: the
 model redraws glyphs as plausible-but-wrong shapes. Do not run the invisible

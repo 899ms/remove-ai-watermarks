@@ -148,11 +148,11 @@ use their format specific paths.
 
 ## Invisible watermarks
 
-The `invisible` command uses diffusion regeneration. It targets watermark
-patterns by changing the image rather than decoding and deleting a known
-payload.
+The `invisible` command uses diffusion regeneration. A specialized Python API can
+instead apply decoder-guided disruption to a positively identified local
+Microsoft Paint payload.
 
-Current pipeline values, all CUDA-only:
+Current diffusion pipeline values, all CUDA-only:
 
 - `qwen-zimage`, the default;
 - `sdxl-zimage`, the same recipe and the same face stage on an SDXL global pass;
@@ -180,19 +180,24 @@ Microsoft Paint can name `com.microsoft.invismark.1` in a C2PA soft-binding
 assertion. Inspection reports both that exact algorithm and its signed `value`,
 which Paint uses as the identifier carried by the pixel watermark, and emits an
 additive `invismark` signal so callers can select pixel removal without parsing
-the generic `soft_binding` detail. Photos uses a parallel local writer path.
-Metadata stripping removes only the embedded manifest; `invisible` and `all`
-guarantee the supported InvisMark removal contract by regenerating the pixel
-layer as well. The project has no validated local InvisMark decoder, so local
-inspection cannot independently verify the output. Microsoft's official
-[Content Provenance Detection API](https://learn.microsoft.com/en-us/azure/ai-services/content-safety/how-to/how-to-provenance-detection)
-is the external oracle: it reports pixel `Watermark` and embedded `C2PA` results
-separately; a control-positive, output-negative pair is the available per-file
-verification path. The API needs Azure credentials; the page a human can check
-without an account is <https://ai.azure.com/nextgen/validate>. That page is the
-public provider oracle used for the measured removal certification. Its clean
-outcome is rendered as `Inconclusive`; the authenticated API exposes separate
-watermark and C2PA fields but is not a different class of certification.
+the generic `soft_binding` detail.
+
+For Paint's local `Watermarker.dll` format, the reader recovers the repeated
+144-bit message and requires its prefix, GUID byte order, checksum, and per-bit
+support. A caller can additionally require agreement with the UUID signed in
+pristine C2PA. Only a positive local payload uses decoder-guided bit disruption;
+the encoded output is read back and must no longer contain a valid local payload
+before it is published. A Microsoft
+soft-binding declaration without a matching local payload, including the
+committed cloud Image Creator fixture, is rejected by this decoder. The CLI and
+high-level API retain their Chroma diffusion route. Metadata stripping alone still
+removes only the manifest.
+
+This is local payload invalidation, not external removal certification. The
+available Azure Content Provenance Detection API did not detect a known-positive
+local-format control, so it cannot certify this direct output. Photos and future
+Paint builds may use another pixel format and therefore remain on the regeneration
+fallback unless this decoder positively identifies them.
 
 Meta Muse Image stamps every output with Content Seal, a proprietary invisible
 pixel watermark, and ships no visible mark (the legacy `Imagined with AI`
@@ -243,7 +248,8 @@ not a universal clean verdict.
 | Google Veo video | Veo diamond and legacy text | Oracle-certified VAE removal for SynthID | C2PA and related source signals |
 | OpenAI image generators | None registered | Diffusion regeneration for supported invisible signals | C2PA and generator provenance |
 | Meta Muse Image | None on Muse output (legacy `Imagined with AI` unregistered) | Diffusion regeneration for Content Seal, oracle-verified on the default profile | XMP IPTC `trainedAlgorithmicMedia` companion tag; no local Content Seal decoder |
-| Microsoft Paint and Photos | None registered | External Microsoft oracle for InvisMark; no validated local decoder | Paint C2PA soft-binding algorithm and identifier |
+| Microsoft Paint local `Watermarker.dll` format | None registered | Local repeated-payload decoder and decoder-guided disruption; no usable external oracle for this format | Paint C2PA soft-binding algorithm and matching UUID |
+| Microsoft cloud and other InvisMark variants | None registered | Chroma regeneration fallback | Microsoft C2PA attribution and soft-binding declaration |
 | Microsoft image outputs (measured variant) | One top-right white AI-badge variant | No registered pixel decoder | C2PA attribution |
 | Stable Diffusion and SDXL | None registered | Diffusion regeneration; optional open decoder | Embedded parameters and text metadata |
 | FLUX | None registered | Diffusion regeneration; optional open decoder | C2PA for supported sources |
