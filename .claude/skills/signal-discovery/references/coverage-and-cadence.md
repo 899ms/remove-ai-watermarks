@@ -8,7 +8,7 @@ historical data is sufficient.
 | Surface | Discovery evidence | Regression check | Removal proof |
 | --- | --- | --- | --- |
 | C2PA, EXIF, XMP, IPTC, PNG text, TC260, soft bindings, and container metadata | `scripts/corpus_gap_scan.py` plus review of unattributed and partially attributed reports | `scripts/sidecar_regression.py`; compare record-based and file-based identification when collection changes | `scripts/metadata_removal_audit.py`; signal absent after strip and decoded pixels/streams unchanged |
-| Registered visible image marks | `scripts/visible_positives.py`; metadata-derived vendor cohorts and blinded sheets for uncovered labels | `scripts/visible_eval.py`, registered examples, and full-corpus crossfire | `scripts/visible_removal_audit.py`; same-mark redetection plus visual residual review and fill-quality checks |
+| Registered visible image marks | `scripts/visible_positives.py` records strict and metadata-corroborated results, metadata cohorts, and blinded native-detail bands for uncovered cohorts plus an unbiased quiet sample | `scripts/visible_eval.py` exposes registry members without adjudicated scope, registered examples, and full-corpus crossfire | `scripts/visible_removal_audit.py`; same-mark redetection plus visual residual review and fill-quality checks |
 | Candidate China-AIGC visible marks | `scripts/vendor_cohort_harvest.py` partitions by producer identity without using pixels; inspect full-width top and bottom sheets | `scripts/vendor_mark_calibrate.py` against independently labelled positives, clean negatives, and neighbouring marks | Register only after the candidate gate survives full-corpus crossfire; then use the normal visible-removal audit |
 | Registered visible video marks | Review provider-labelled or controlled complete clips, not isolated frames alone | Full-clip tests and the local real-provider audit described in `docs/verification-plan.md` | Preserve sequence, timing, duration, and audio; second-pass detection must be quiet |
 | Locally decodable invisible image marks, including open DWT-DCT and TrustMark | Positive-control-gated corpus or constructed carriers; a negative on an uncontrolled carrier is inconclusive | `scripts/watermark_benchmark.py` and the relevant decoder tests with the required extras installed | Re-run the same decoder on output and retain a positive control in the same run |
@@ -41,6 +41,12 @@ Marker matching must remain metadata-region bounded to avoid random hits in
 compressed pixels, but its inventory should be reconciled with the current
 metadata constants and registry on every audit. Do not infer completeness from
 `No gap candidates` until the other rows of the matrix also ran.
+
+For a visible discovery pass, use a fresh report path and pass `--sheets` to
+`visible_positives.py`. Review the numbered PNG files before opening
+`MANIFEST_DO_NOT_OPEN.csv`; metadata cohorts select where a mark may occur but do
+not label the pixels. The separate `unbiased-quiet` stratum is required because a
+new provider may carry neither a mapped producer code nor readable provenance.
 
 ## When to replay old data
 

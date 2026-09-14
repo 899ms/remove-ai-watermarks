@@ -26,7 +26,7 @@ explicitly names a tracked canonical result.
 | `sidecar_regression.py` | Compare current identification with recorded sidecars. |
 | `smoke_matrix.py` | Exercise CLI parameter choices on real local data. |
 | `video_fidelity_probe.py` | Compare delivered video fidelity with its source. |
-| `visible_eval.py` | Benchmark registered visible-mark detectors. |
+| `visible_eval.py` | Benchmark the adjudicated registry subset and expose unmeasured marks as scope-zero rows. |
 | `visible_removal_audit.py` | Audit visible-removal results over a local corpus. |
 | `watermark_benchmark.py` | Run hash-pinned image cases while keeping detection, removal observation, and fidelity separate. |
 | `watermark_benchmark_report.py` | Aggregate repeated benchmark results with artifact-aware counts and separate cold/warm timing. |
@@ -46,7 +46,7 @@ explicitly names a tracked canonical result.
 | `vendor_mark_calibrate.py` | Calibrate a candidate vendor text detector. |
 | `visible_alpha_solve.py` | Rebuild visible-watermark alpha assets from controlled captures and the cleared Qwen symbol fixture. |
 | `visible_groundtruth.py` | Consolidate blinded contact-sheet labels into ground truth. |
-| `visible_positives.py` | List corpus images carrying a registered visible mark. |
+| `visible_positives.py` | Resumably scan registered marks plus metadata cohorts, and build blinded native-detail bands for uncovered and unbiased quiet samples. |
 | `visible_recall_sample.py` | Build an unbiased blinded sample for recall measurement. |
 | `visible_sheets.py` | Build blinded contact sheets for relaxation candidates. |
 | `watermark_benchmark_cohort.py` | Build the deterministic synthetic DWT-DCT and TrustMark cohort consumed by `watermark_benchmark.py`. |

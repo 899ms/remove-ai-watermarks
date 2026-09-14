@@ -41,7 +41,10 @@ from remove_ai_watermarks.image_io import imread
 
 GT = Path(".local-eval/textmark-relaxation/groundtruth.jsonl")
 SNAP = Path(".local-eval/textmark-relaxation/snapshots")
-MARKS = ("gemini", "doubao", "jimeng", "samsung", "jimeng_pill")
+# Ground truth currently adjudicates only a subset, but inventory follows the
+# registry. A newly registered mark therefore appears with scope zero instead of
+# silently vanishing from the evaluation harness.
+MARKS = tuple(wr.mark_keys())
 
 
 def wilson(k: int, n: int) -> tuple[float, float]:
@@ -122,7 +125,7 @@ def report(res: dict, prev: dict | None = None) -> None:
         lo, hi = wilson(tp, n)
         delta = ""
         if prev:
-            pc = prev["per"][m]
+            pc = prev["per"].get(m, {})
             pn = pc.get("tp", 0) + pc.get("fp", 0)
             if pn:
                 d = tp / n - pc.get("tp", 0) / pn

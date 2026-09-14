@@ -12,6 +12,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 import corpus_gap_scan as gap
 import sidecar_regression as regression
+import visible_eval
+import visible_positives as visible
 
 
 def _report(**overrides):
@@ -68,6 +70,57 @@ def test_gap_checkpoint_keeps_complete_rows_and_ignores_a_torn_tail(tmp_path):
         stream.write(json.dumps(second) + "\n")
 
     assert gap._read_checkpoint(checkpoint) == {row["path"]: row, second["path"]: second}
+
+
+def test_visible_checkpoint_is_repaired_before_resume(tmp_path):
+    checkpoint = tmp_path / "visible.jsonl"
+    first = {"path": "/corpus/2026-09-10/first.png", "keys": [], "status": "ok"}
+    checkpoint.write_text(json.dumps(first) + '\n{"path":"torn', encoding="utf-8")
+
+    visible._repair_checkpoint(checkpoint)
+    with checkpoint.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps({"path": "/corpus/2026-09-10/second.png", "keys": [], "status": "ok"}) + "\n")
+
+    assert [row["path"] for row in visible._read_records(checkpoint)] == [
+        "/corpus/2026-09-10/first.png",
+        "/corpus/2026-09-10/second.png",
+    ]
+
+
+def test_visible_since_filter_uses_corpus_date_directories(tmp_path):
+    old = tmp_path / "2026-09-01" / "old.png"
+    current = tmp_path / "2026-09-10" / "current.png"
+    nested = tmp_path / "2026-09-10" / "nested" / "current.webp"
+    undated = tmp_path / "loose.png"
+    for path in (old, current, nested, undated):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+
+    assert visible._files(tmp_path, date(2026, 9, 10)) == [current, nested]
+
+
+def test_visible_discovery_candidates_include_unmapped_provenance_and_unbiased_quiet_rows():
+    rows = [
+        {"path": "known.png", "keys": ["qwen"], "status": "ok", "uscc": "unmapped-a"},
+        {"path": "a.png", "keys": [], "status": "ok", "uscc": "unmapped-a"},
+        {"path": "b.png", "keys": [], "status": "ok", "platform": "Google Gemini"},
+        {"path": "c.png", "keys": [], "status": "ok"},
+        {"path": "bad.png", "keys": [], "status": "unreadable", "uscc": "unmapped-b"},
+    ]
+
+    selected = visible._discovery_candidates(rows, per_cohort=2, random_quiet=10, seed=7)
+
+    assert {row["path"] for row in selected} == {"a.png", "b.png", "c.png"}
+    assert next(row for row in selected if row["path"] == "a.png")["discovery_strata"] == [
+        "tc260:unmapped-a",
+        "unbiased-quiet",
+    ]
+
+
+def test_visible_evaluation_inventory_follows_the_registry():
+    from remove_ai_watermarks.watermark_registry import mark_keys
+
+    assert tuple(mark_keys()) == visible_eval.MARKS
 
 
 def test_gap_worker_error_is_a_complete_resumable_row(monkeypatch, tmp_path):

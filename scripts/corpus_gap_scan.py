@@ -40,12 +40,15 @@ import logging
 import os
 from collections import Counter
 from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
-from datetime import date
 from importlib.metadata import version
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from datetime import date
 
 import click
+from _corpus_scan import corpus_day, corpus_files, repair_jsonl_tail
 from _plain_console import Console, Table
 
 from remove_ai_watermarks.identify import _metadata_region as identify_metadata_region
@@ -166,23 +169,12 @@ def _candidate_classes(rep: Any, hits: list[str]) -> list[str]:
 
 def _day_of(path: Path, corpus: Path) -> date | None:
     """Read the leading YYYY-MM-DD corpus segment, if this layout has one."""
-    try:
-        segment = path.relative_to(corpus).parts[0]
-        return date.fromisoformat(segment)
-    except (ValueError, IndexError):
-        return None
+    return corpus_day(path, corpus)
 
 
 def _files(corpus: Path, since: date | None) -> list[Path]:
     """Return the deterministic corpus walk, optionally bounded by its date segment."""
-    if since is None:
-        return sorted(path for path in corpus.rglob("*") if path.is_file())
-    roots = [
-        path
-        for path in corpus.iterdir()
-        if path.is_dir() and (day := _day_of(path, corpus)) is not None and day >= since
-    ]
-    return sorted(path for root in roots for path in root.rglob("*") if path.is_file())
+    return corpus_files(corpus, since)
 
 
 def _scan_one(args: tuple[str, str, str]) -> dict[str, str]:
@@ -230,13 +222,7 @@ def _read_checkpoint(path: Path) -> dict[str, dict[str, str]]:
 
 def _repair_checkpoint(path: Path) -> None:
     """Remove an interrupted final JSONL fragment before another append."""
-    if not path.exists():
-        return
-    with path.open("rb+") as stream:
-        data = stream.read()
-        if data and not data.endswith(b"\n"):
-            last_newline = data.rfind(b"\n")
-            stream.truncate(last_newline + 1)
+    repair_jsonl_tail(path)
 
 
 def _summarize(rows: list[dict[str, str]]) -> None:

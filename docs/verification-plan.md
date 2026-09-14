@@ -501,6 +501,12 @@ invisible marks, detection/removal parity, or historical crossfire.
 The scan runs files in parallel and checkpoints each completed row beside the
 requested CSV as `.progress.jsonl`; repeat the same command to resume an
 interrupted run, and use a distinct report path for every code/corpus snapshot.
+The visible counterpart, `scripts/visible_positives.py`, records both strict and
+metadata-corroborated registry results in a resumable JSONL. With `--sheets` it
+adds blinded, native-resolution top and bottom bands from quiet metadata cohorts
+and from an unbiased quiet sample. The latter keeps a provider with no mapped
+metadata from being excluded by construction; neither stratum is ground truth
+until the pixels are adjudicated.
 
 Run a fresh-delta discovery review weekly after the retained corpus is
 refreshed, using `corpus_gap_scan.py --since` with an overlap from the preceding
