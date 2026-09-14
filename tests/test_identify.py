@@ -46,6 +46,12 @@ _SPARKLE_TARGET = "remove_ai_watermarks.gemini_engine.detect_sparkle_confidence"
 SAMPLES_DIR = Path(__file__).resolve().parent.parent / "data" / "fixtures" / "provenance"
 
 
+def _write_c2pa_jpeg(tmp_path: Path, name: str, blob: bytes) -> Path:
+    path = tmp_path / name
+    path.write_bytes(b"\xff\xd8\xff\xe1jumbc2pa" + blob + b"\xff\xd9")
+    return path
+
+
 class TestProvenanceEvidence:
     def test_exact_ai_claim_generator_can_assert_ai_without_source_type(self, tmp_path: Path):
         path = tmp_path / "firefly.png"
@@ -646,13 +652,8 @@ class TestIdentifySamsungGalaxy:
     so the signer attribution must NOT trip the camera-vs-AI integrity clash.
     """
 
-    def _jpeg(self, tmp_path: Path, name: str, blob: bytes) -> Path:
-        path = tmp_path / name
-        path.write_bytes(b"\xff\xd8\xff\xe1jumbc2pa" + blob + b"\xff\xd9")
-        return path
-
     def test_galaxy_trained_source_is_unverified_ai(self, tmp_path: Path):
-        path = self._jpeg(tmp_path, "s25.jpg", b"Samsung Galaxy Galaxy S25 c2pa-rs trainedAlgorithmicMedia")
+        path = _write_c2pa_jpeg(tmp_path, "s25.jpg", b"Samsung Galaxy Galaxy S25 c2pa-rs trainedAlgorithmicMedia")
         r = identify(path, check_visible=False, check_invisible=False)
         assert r.is_ai_generated is True
         assert r.confidence == "medium"
@@ -664,7 +665,7 @@ class TestIdentifySamsungGalaxy:
     def test_galaxy_genai_only_is_medium_ai(self, tmp_path: Path):
         # The Galaxy S24 case: no trainedAlgorithmicMedia, genAIType is the only
         # AI marker -- previously missed, now a medium-confidence verdict.
-        path = self._jpeg(
+        path = _write_c2pa_jpeg(
             tmp_path, "s24.jpg", b'Samsung Galaxy Galaxy S24 c2pa-rs PhotoEditor_Re_Edit_Data{"genAIType":1}'
         )
         r = identify(path, check_visible=False, check_invisible=False)
@@ -677,7 +678,7 @@ class TestIdentifySamsungGalaxy:
     def test_asus_gallery_signer_not_ai(self, tmp_path: Path):
         # ASUS Gallery signs edited photos; no AI source-type or genAIType, so the
         # platform is attributed but the verdict stays unknown.
-        path = self._jpeg(tmp_path, "asus.jpg", b"/com.asus.gallery/3.8.0.98 c2pa-rs no ai marker")
+        path = _write_c2pa_jpeg(tmp_path, "asus.jpg", b"/com.asus.gallery/3.8.0.98 c2pa-rs no ai marker")
         r = identify(path, check_visible=False, check_invisible=False)
         assert r.is_ai_generated is None
         assert r.platform == "ASUS Gallery (C2PA signer)"
@@ -687,11 +688,86 @@ class TestIdentifySamsungGalaxy:
         # A genuine Galaxy phone capture carries Samsung Galaxy C2PA provenance but
         # NO AI source-type / genAIType. It must stay is_ai=None -- the device cert
         # is authenticity provenance of a real photo, not an AI-generation signal.
-        path = self._jpeg(tmp_path, "s25_capture.jpg", b"Samsung Galaxy Galaxy S25 c2pa-rs no ai marker")
+        path = _write_c2pa_jpeg(tmp_path, "s25_capture.jpg", b"Samsung Galaxy Galaxy S25 c2pa-rs no ai marker")
         r = identify(path, check_visible=False, check_invisible=False)
         assert r.is_ai_generated is None
         assert r.platform == "Samsung Galaxy (C2PA)"
         assert any("C2PA" in w for w in r.watermarks)
+
+
+class TestIdentifyDiscoveredC2paSigners:
+    @pytest.mark.parametrize(
+        ("blob", "platform"),
+        [
+            (b"Anthropic Claude Content Signing", "Anthropic Claude (C2PA signer)"),
+            (b"CapCut/ c2pa-rs", "CapCut (C2PA signer)"),
+            (b"TikTok Inc.", "TikTok (C2PA signer)"),
+            (b"vivo Camera vivo X300 Pro", "vivo (camera, C2PA capture)"),
+        ],
+    )
+    def test_non_ai_signer_is_attributed_without_asserting_ai(self, tmp_path: Path, blob: bytes, platform: str):
+        path = _write_c2pa_jpeg(tmp_path, "signed.jpg", blob)
+
+        report = identify(path, check_visible=False, check_invisible=False)
+
+        assert report.is_ai_generated is None
+        assert report.platform == platform
+
+    def test_structured_non_ai_capcut_generator_is_attributed(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        path = tmp_path / "edited.png"
+        from PIL import Image
+
+        Image.new("RGB", (32, 32)).save(path)
+        monkeypatch.setattr(
+            "remove_ai_watermarks.identify.extract_c2pa_info",
+            lambda _path: {
+                "has_c2pa": True,
+                "issuer": "ByteDance",
+                "claim_generator": "CapCut/ c2pa-tool/0.1.0 c2pa-rs/0.31.3",
+            },
+        )
+
+        report = identify(path, check_visible=False, check_invisible=False)
+
+        assert report.is_ai_generated is None
+        assert report.platform == "CapCut (C2PA signer)"
+
+    @pytest.mark.parametrize(
+        ("issuer", "claim_generator", "platform"),
+        [
+            ("xAI Grok Imagine", "c2pa-rs", "xAI Grok Imagine"),
+            ("Producer.ai", "producer_ai", "Producer.ai"),
+            ("", "FastVid", "FastVid"),
+            ("SPRING (SG) PTE. LTD.", "c2pa-rs", "SPRING (SG) PTE. LTD."),
+        ],
+    )
+    def test_ai_signer_or_generator_is_attributed(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        issuer: str,
+        claim_generator: str,
+        platform: str,
+    ):
+        path = tmp_path / "generated.png"
+        from PIL import Image
+
+        Image.new("RGB", (32, 32)).save(path)
+        monkeypatch.setattr(
+            "remove_ai_watermarks.identify.extract_c2pa_info",
+            lambda _path: {
+                "has_c2pa": True,
+                "issuer": issuer,
+                "claim_generator": claim_generator,
+                "source_type": "trainedAlgorithmicMedia (AI-generated)",
+                "ai_source_kind": "generated",
+            },
+        )
+
+        report = identify(path, check_visible=False, check_invisible=False)
+
+        assert report.is_ai_generated is True
+        assert report.platform == platform
 
 
 # ── End-to-end verdicts on real fixtures ────────────────────────────

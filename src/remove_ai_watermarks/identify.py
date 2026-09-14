@@ -44,6 +44,8 @@ from remove_ai_watermarks._internal.constants import (
     C2PA_CLAIM_GENERATOR_PLATFORMS,
     C2PA_IDENTITY_AI_ORGS,
     C2PA_ISSUERS,
+    C2PA_SIGNER_PLATFORM_BY_ORG,
+    C2PA_SIGNER_PLATFORMS,
 )
 from remove_ai_watermarks._internal.schema import require_schema_version
 from remove_ai_watermarks.metadata import (
@@ -631,7 +633,8 @@ def _ai_tools_in(data: bytes) -> list[str]:
 # Only tokens verified against a real signed file are listed (Leica, Nikon,
 # Sony, Truepic, Google Pixel); add Canon/Bria as real samples are captured.
 # Samsung Galaxy is an AI-capable editing device, not a pure-capture camera, so
-# it lives in `_SIGNER_C2PA_PLATFORM` below (it must not feed the camera clash).
+# it lives in the neutral `C2PA_SIGNER_PLATFORMS` registry (it must not feed the
+# camera clash).
 _DEVICE_C2PA_PLATFORM: tuple[tuple[bytes, str], ...] = (
     (b"lc_c2pa", "Leica (camera, C2PA capture)"),
     (b"Leica Camera", "Leica (camera, C2PA capture)"),
@@ -646,6 +649,8 @@ _DEVICE_C2PA_PLATFORM: tuple[tuple[bytes, str], ...] = (
     # Truepic is a C2PA signing authority whose name appears in the trust chain
     # of unrelated manifests (e.g. OpenAI), so the bare token mis-attributes.
     (b"Truepic_Lens", "Truepic Lens (verified capture)"),
+    (b"vivo Camera", "vivo (camera, C2PA capture)"),
+    (b"vivo X300 Pro", "vivo (camera, C2PA capture)"),
 )
 
 
@@ -743,15 +748,14 @@ def _device_platform(head: bytes) -> str | None:
 #     (distinct from the EXIF "SM-xxxx" model string on ordinary Samsung photos).
 #   com.asus.gallery -- ASUS Gallery claim_generator (a C2PA-signed edit, no AI
 #     source type or genAIType on the samples, so it never asserts is_ai).
-_SIGNER_C2PA_PLATFORM: tuple[tuple[bytes, str], ...] = (
-    (b"Samsung Galaxy", "Samsung Galaxy (C2PA)"),
-    (b"com.asus.gallery", "ASUS Gallery (C2PA signer)"),
-)
-
-
-def _signer_platform(head: bytes) -> str | None:
-    """Map a C2PA editing-app / AI-capable-device signer token to a platform."""
-    return _first_token_match(head, _SIGNER_C2PA_PLATFORM)
+def _signer_platform(head: bytes, issuers: list[str]) -> str | None:
+    """Map a raw or normalized C2PA signer identity to a neutral platform."""
+    raw = _first_token_match(head, C2PA_SIGNER_PLATFORMS)
+    normalized = next(
+        (C2PA_SIGNER_PLATFORM_BY_ORG[org] for org in issuers if org in C2PA_SIGNER_PLATFORM_BY_ORG),
+        None,
+    )
+    return raw or normalized
 
 
 def _attribute_platform(issuers: list[str], *, is_ai: bool = True) -> str | None:
@@ -1178,7 +1182,6 @@ def _identify_from_evidence(
     # below keeps the full buffer: their markers are long and distinctive.
     region = _metadata_region(head)
     camera_label = _device_platform(region)
-    signer_label = _signer_platform(region)
 
     # ── C2PA Content Credentials ────────────────────────────────────
     has_c2pa = bool(info) or c2pa_marker_in(head)
@@ -1189,6 +1192,7 @@ def _identify_from_evidence(
     # by substring made the displayed reason a second, looser rule than the verdict.
     failed_c2pa_codes = [str(code) for code in cast("list[object]", info.get("c2pa_failed_codes", []))]
     issuers = [info["issuer"]] if info.get("issuer") else _issuers_in(region)
+    signer_label = _signer_platform(region, issuers)
     # Full AI generation (trainedAlgorithmicMedia) vs an AI-enhanced real photo
     # (compositeWithTrainedAlgorithmicMedia). The structured kind is parsed once in
     # _internal.c2pa._structured_manifest_fields (covers PNG + any container the c2pa-python
@@ -1216,15 +1220,18 @@ def _identify_from_evidence(
         or (", ".join(tools) if (tools := _ai_tools_in(region)) else None)
     )
     # Platform: a distinctive device/camera token in the manifest wins (it is the
-    # signer/producer), then an editing-app/AI-device signer (Samsung Galaxy,
-    # ASUS Gallery), with the issuer byte-scan only as fallback. The issuer scan
-    # alone mis-attributed real samples (Leica->Truepic timestamp authority,
-    # Nikon->Adobe namespace, Pixel->Google Gemini) -- the token scans fix that.
+    # signer/producer), then an exact product generator, then an editing-app or
+    # AI-device signer (Samsung Galaxy, ASUS Gallery), with the issuer byte-scan
+    # only as fallback. The issuer scan alone mis-attributed real samples
+    # (Leica->Truepic timestamp authority, Nikon->Adobe namespace, Pixel->Google
+    # Gemini) -- the token scans fix that.
     platform = (
         (
             camera_label
+            # Exact product generators are useful provenance even when the
+            # signed operation is a non-AI edit (for example, CapCut).
+            or _claim_generator_platform(generator)
             or signer_label
-            or (_claim_generator_platform(generator) if c2pa_is_ai else None)
             or (_claim_generator_platform(str(info.get("ai_tool"))) if c2pa_is_ai and info.get("ai_tool") else None)
             or _attribute_platform(issuers, is_ai=c2pa_is_ai)
         )

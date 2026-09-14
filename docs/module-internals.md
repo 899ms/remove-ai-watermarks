@@ -510,13 +510,14 @@ convert `signingCredential.untrusted` into trusted based on a vendor-name match.
 Vendor attribution comes from the registry in
 [`_internal/constants.py`](../src/remove_ai_watermarks/_internal/constants.py). Derived
 issuer and platform maps should not be maintained separately.
-For an AI C2PA claim, a recognized product in `claim_generator` takes precedence
-over the certificate issuer: an application can sign through an upstream model
-provider without becoming that provider's product. Only exact product mappings
-receive this precedence; an unknown claim generator still falls back to issuer
-attribution. An unmapped issuer org reads as unknown-signer C2PA with no platform;
-that is how Ideogram was surfaced (4 private-corpus files signed "Ideogram, Inc",
-2026-08-08) before its vendor row was added on 2026-08-27.
+A recognized product in `claim_generator` takes precedence over the certificate
+issuer: an application can sign through an upstream model provider without
+becoming that provider's product. Exact products are also useful provenance on a
+non-AI edit, such as CapCut; recognizing the product does not itself change the AI
+verdict. An unknown claim generator falls back to issuer attribution. An unmapped
+issuer org reads as unknown-signer C2PA with no platform; that is how Ideogram was
+surfaced (4 private-corpus files signed "Ideogram, Inc", 2026-08-08) before its
+vendor row was added on 2026-08-27.
 
 ### Metadata scanning and stripping
 

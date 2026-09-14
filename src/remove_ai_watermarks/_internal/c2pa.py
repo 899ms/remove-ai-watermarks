@@ -18,6 +18,7 @@ from remove_ai_watermarks._internal.constants import (
     C2PA_AI_TOOLS,
     C2PA_AI_VENDORS,
     C2PA_CHUNK_TYPE,
+    C2PA_IDENTITY_AI_ORGS,
     C2PA_ISSUERS,
     C2PA_SIGNATURES,
     C2PA_SOFT_BINDING_REGISTRY,
@@ -529,7 +530,8 @@ def _structured_manifest_fields(store: dict[str, Any]) -> dict[str, Any]:
         info["ai_tool"] = ", ".join(tools)
     if actions:
         info["actions"] = ", ".join(actions)
-    if claim_generator_asserts_ai:
+    signer_identity_asserts_ai = not C2PA_IDENTITY_AI_ORGS.isdisjoint(issuers)
+    if claim_generator_asserts_ai or signer_identity_asserts_ai:
         info["c2pa_identity_ai"] = True
 
     generated = any(

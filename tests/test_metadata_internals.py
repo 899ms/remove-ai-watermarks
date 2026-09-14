@@ -211,6 +211,43 @@ class TestC2PA:
         assert info["ai_tool"] == "Dreamina"
         assert info["c2pa_identity_ai"] is True
 
+    def test_structured_xai_signer_identity_is_normalized(self):
+        store = {
+            "active_manifest": "active",
+            "manifests": {
+                "active": {
+                    "signature_info": {
+                        "issuer": "Self-signed ephemeral certificate (Content Authenticity SDK) -- LOCAL USE ONLY",
+                        "common_name": "xAI Grok Imagine",
+                    },
+                    "assertions": [],
+                }
+            },
+        }
+
+        info = c2pa_info_from_manifest_store(store)
+
+        assert info["issuer"] == "xAI Grok Imagine"
+        assert info["c2pa_identity_ai"] is True
+
+    @pytest.mark.parametrize(
+        ("signature", "issuer"),
+        [
+            ({"issuer": "Bytedance Pte. Ltd."}, "ByteDance"),
+            ({"issuer": "TikTok Inc."}, "TikTok"),
+        ],
+    )
+    def test_structured_publisher_identity_does_not_assert_ai(self, signature, issuer):
+        store = {
+            "active_manifest": "active",
+            "manifests": {"active": {"signature_info": signature, "assertions": []}},
+        }
+
+        info = c2pa_info_from_manifest_store(store)
+
+        assert info["issuer"] == issuer
+        assert "c2pa_identity_ai" not in info
+
     def test_structured_invismark_exposes_algorithm_and_watermark_id(self):
         watermark_id = "83424621-03cb-40e3-9808-a9fae837156d"
         store = {

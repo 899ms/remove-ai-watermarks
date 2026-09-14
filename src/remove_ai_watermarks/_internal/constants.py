@@ -32,7 +32,7 @@ C2PA_SIGNATURES = tuple(
 
 @dataclass(frozen=True, slots=True)
 class C2paAiVendor:
-    """One issuer signature and its normalized product attribution."""
+    """One C2PA identity and its AI-product or neutral-signer attribution."""
 
     issuer: bytes
     org: str
@@ -41,6 +41,8 @@ class C2paAiVendor:
     synthid: bool = False
     asserts_ai: bool = False
     synthid_requires_watermark_action: bool = False
+    signer_platform: str | None = None
+    raw_signer_platforms: tuple[tuple[bytes, str], ...] = ()
 
 
 def _vendor(
@@ -52,6 +54,8 @@ def _vendor(
     synthid: bool = False,
     asserts_ai: bool = False,
     synthid_requires_watermark_action: bool = False,
+    signer_platform: str | None = None,
+    raw_signer_platforms: tuple[tuple[bytes, str], ...] = (),
 ) -> C2paAiVendor:
     token = issuer.encode() if isinstance(issuer, str) else issuer
     return C2paAiVendor(
@@ -62,6 +66,8 @@ def _vendor(
         synthid=synthid,
         asserts_ai=asserts_ai,
         synthid_requires_watermark_action=synthid_requires_watermark_action,
+        signer_platform=signer_platform,
+        raw_signer_platforms=raw_signer_platforms,
     )
 
 
@@ -109,11 +115,68 @@ C2PA_AI_VENDORS: tuple[C2paAiVendor, ...] = (
     # "Bria Artificial Intelligence"). Found as an unmapped signer on 4 corpus
     # uploads 2026-08-08 that identify reported as unknown-signer C2PA.
     _vendor(b"Ideogram", "Ideogram", "Ideogram", "Ideogram", asserts_ai=True),
+    _vendor(b"xAI Grok Imagine", "xAI Grok Imagine", "xAI Grok Imagine", "xAI", asserts_ai=True),
+    _vendor(b"Producer.ai", "Producer.ai", "Producer.ai", "Producer.ai", asserts_ai=True),
+    # This signature names only SPRING's legal entity, not a product. Preserve
+    # that signer identity without guessing which product produced a file.
+    _vendor(b"SPRING (SG) PTE. LTD.", "SPRING (SG) PTE. LTD.", "SPRING (SG) PTE. LTD.", "SPRING"),
+    # These companies also sign ordinary edits and publications. Register the
+    # signer identity for provenance display, but provide no AI platform and do
+    # not let the identity assert an AI verdict.
+    _vendor(
+        b"TikTok Inc.",
+        "TikTok",
+        None,
+        None,
+        signer_platform="TikTok (C2PA signer)",
+    ),
+    _vendor(
+        b"Bytedance Pte",
+        "ByteDance",
+        None,
+        None,
+        signer_platform="ByteDance (C2PA signer)",
+        raw_signer_platforms=(
+            (b"Bytedance Pte. Ltd.", "ByteDance (C2PA signer)"),
+            (b"CapCut/", "CapCut (C2PA signer)"),
+            (b"capcut c2pa-rs", "CapCut (C2PA signer)"),
+        ),
+    ),
+    _vendor(
+        b"Anthropic Claude Content Signing",
+        "Anthropic Claude",
+        None,
+        None,
+        signer_platform="Anthropic Claude (C2PA signer)",
+    ),
+    _vendor(
+        b"Samsung Galaxy",
+        "Samsung Galaxy",
+        None,
+        None,
+        signer_platform="Samsung Galaxy (C2PA)",
+    ),
+    _vendor(
+        b"com.asus.gallery",
+        "ASUS Gallery",
+        None,
+        None,
+        signer_platform="ASUS Gallery (C2PA signer)",
+    ),
     _vendor(b"Truepic", "Truepic", None, None),
 )
 
 C2PA_ISSUERS = {vendor.issuer: vendor.org for vendor in C2PA_AI_VENDORS}
 C2PA_IDENTITY_AI_ORGS = frozenset(vendor.org for vendor in C2PA_AI_VENDORS if vendor.asserts_ai)
+C2PA_SIGNER_PLATFORM_BY_ORG = {
+    vendor.org: vendor.signer_platform for vendor in C2PA_AI_VENDORS if vendor.signer_platform is not None
+}
+C2PA_SIGNER_PLATFORMS = tuple(
+    pair
+    for vendor in C2PA_AI_VENDORS
+    if vendor.signer_platform is not None
+    for pair in (vendor.raw_signer_platforms or ((vendor.issuer, vendor.signer_platform),))
+)
 
 # Product-specific claim generators can sign through a different upstream issuer.
 # Keep this attribution beside the issuer registry so every C2PA consumer has one
@@ -128,6 +191,8 @@ C2PA_CLAIM_GENERATOR_PLATFORMS: tuple[tuple[str, str], ...] = (
     ("recraft.ai", "Recraft"),
     ("topaz labs image api", "Topaz Labs"),
     ("tiktok ad creative toolbox", "TikTok Ad Creative Toolbox"),
+    ("fastvid", "FastVid"),
+    ("capcut", "CapCut (C2PA signer)"),
 )
 
 C2PA_AI_TOOLS = {

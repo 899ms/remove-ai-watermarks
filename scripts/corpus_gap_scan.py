@@ -26,9 +26,13 @@ Usage:
         --since 2026-09-01 --report .local-eval/detector-report-weekly.csv
 
 Rows stream into ``<report>.progress.jsonl`` and resume by relative path after an
-interruption. Use a new report name for a new code/corpus snapshot, or pass
-``--restart`` when intentionally replacing the checkpoint. The final CSV is
-written atomically after every selected row is present.
+interruption. A schema version prevents an older checkpoint from silently
+producing blank fields after the report grows. Use a new report name for a new
+code/corpus snapshot, or pass ``--restart`` when intentionally replacing the
+checkpoint. The final CSV is written atomically after every selected row is
+present. C2PA candidates include normalized signer, claim-generator, action,
+source-type, and validation fields for aggregate review without reopening every
+manifest.
 """
 
 from __future__ import annotations
@@ -52,7 +56,7 @@ from _corpus_scan import corpus_day, corpus_files, repair_jsonl_tail
 from _plain_console import Console, Table
 
 from remove_ai_watermarks.identify import _metadata_region as identify_metadata_region
-from remove_ai_watermarks.identify import identify
+from remove_ai_watermarks.identify import extract_provenance_evidence, identify_from_evidence
 from remove_ai_watermarks.metadata import (
     IPTC_AI_FIELD_MARKERS,
     IPTC_AI_MARKERS,
@@ -93,6 +97,7 @@ MARKERS: tuple[bytes, ...] = (
     b"Stability AI",
 )
 REPORT_FIELDS: tuple[str, ...] = (
+    "report_schema_version",
     "path",
     "suffix",
     "lib_version",
@@ -101,18 +106,24 @@ REPORT_FIELDS: tuple[str, ...] = (
     "confidence",
     "watermarks",
     "signals",
+    "c2pa_issuer",
+    "c2pa_claim_generator",
+    "c2pa_actions",
+    "c2pa_source_type",
+    "c2pa_validation",
     "integrity_clashes",
     "markers",
     "candidate_classes",
     "error",
 )
+_REPORT_SCHEMA_VERSION = "2"
 _DISPLAY_CANDIDATE_LIMIT = 50
 _WORKER_BATCH_SIZE = 16
 
 
 def _base_row(path: str, suffix: str, lib_version: str) -> dict[str, str]:
     row = dict.fromkeys(REPORT_FIELDS, "")
-    row.update(path=path, suffix=suffix, lib_version=lib_version)
+    row.update(report_schema_version=_REPORT_SCHEMA_VERSION, path=path, suffix=suffix, lib_version=lib_version)
     return row
 
 
@@ -183,7 +194,8 @@ def _scan_one(args: tuple[str, str, str]) -> dict[str, str]:
     path = Path(path_str)
     suffix = path.suffix.lower()
     try:
-        rep = identify(path, check_visible=False, check_invisible=False)
+        evidence = extract_provenance_evidence(path)
+        rep = identify_from_evidence(evidence)
     except Exception as exc:
         log.warning("identify failed on %s: %s", relative_path, exc)
         row = _base_row(relative_path, suffix, lib_version)
@@ -191,7 +203,15 @@ def _scan_one(args: tuple[str, str, str]) -> dict[str, str]:
         row["error"] = f"{type(exc).__name__}: {exc}"[:300].replace("\n", " ")
     else:
         row = _row(rep, path=relative_path, suffix=suffix, lib_version=lib_version)
-        hits = _marker_hits_for_path(path)
+        c2pa = evidence.c2pa_info
+        row.update(
+            c2pa_issuer=str(c2pa.get("issuer", "")),
+            c2pa_claim_generator=str(c2pa.get("claim_generator", "")),
+            c2pa_actions=str(c2pa.get("actions", "")),
+            c2pa_source_type=str(c2pa.get("source_type", "")),
+            c2pa_validation=str(c2pa.get("c2pa_validation_state", "")),
+        )
+        hits = _marker_hits(identify_metadata_region(evidence.scan))
         row["markers"] = "|".join(hits)
         row["candidate_classes"] = "|".join(_candidate_classes(rep, hits))
         return row
@@ -215,7 +235,11 @@ def _read_checkpoint(path: Path) -> dict[str, dict[str, str]]:
                 row = json.loads(line)
             except (json.JSONDecodeError, UnicodeDecodeError):
                 continue
-            if isinstance(row, dict) and isinstance(row.get("path"), str):
+            if (
+                isinstance(row, dict)
+                and row.get("report_schema_version") == _REPORT_SCHEMA_VERSION
+                and isinstance(row.get("path"), str)
+            ):
                 rows[row["path"]] = {field: str(row.get(field, "")) for field in REPORT_FIELDS}
     return rows
 

@@ -128,17 +128,57 @@ def test_gap_worker_error_is_a_complete_resumable_row(monkeypatch, tmp_path):
     path.write_bytes(b"not an image")
     calls = []
 
-    def fail(_path, **kwargs):
-        calls.append(kwargs)
+    def fail(_path):
+        calls.append(_path)
         raise ValueError("broken\ninput")
 
-    monkeypatch.setattr(gap, "identify", fail)
+    monkeypatch.setattr(gap, "extract_provenance_evidence", fail)
     row = gap._scan_one((str(path), "bad.bin", "1.2.3"))
 
     assert set(row) == set(gap.REPORT_FIELDS)
     assert row["candidate_classes"] == "identify_error"
     assert row["error"] == "ValueError: broken input"
-    assert calls == [{"check_visible": False, "check_invisible": False}]
+    assert calls == [path]
+
+
+def test_gap_worker_records_c2pa_review_fields(monkeypatch, tmp_path):
+    path = tmp_path / "signed.png"
+    path.touch()
+    evidence = SimpleNamespace(
+        c2pa_info={
+            "issuer": "Example signer",
+            "claim_generator": "Example generator",
+            "actions": "created",
+            "source_type": "trainedAlgorithmicMedia (AI-generated)",
+            "c2pa_validation_state": "Valid",
+        },
+        scan=b"c2pa",
+    )
+    monkeypatch.setattr(gap, "extract_provenance_evidence", lambda _path: evidence)
+    monkeypatch.setattr(
+        gap,
+        "identify_from_evidence",
+        lambda actual: (
+            SimpleNamespace(
+                is_ai_generated=True,
+                platform="Example",
+                confidence="high",
+                watermarks=["C2PA"],
+                signals=[SimpleNamespace(name="c2pa")],
+                integrity_clashes=[],
+            )
+            if actual is evidence
+            else None
+        ),
+    )
+
+    row = gap._scan_one((str(path), "signed.png", "1.2.3"))
+
+    assert row["c2pa_issuer"] == "Example signer"
+    assert row["c2pa_claim_generator"] == "Example generator"
+    assert row["c2pa_actions"] == "created"
+    assert row["c2pa_source_type"] == "trainedAlgorithmicMedia (AI-generated)"
+    assert row["c2pa_validation"] == "Valid"
 
 
 def test_gap_summary_does_not_report_a_negative_hidden_count(capsys):
