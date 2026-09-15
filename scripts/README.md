@@ -50,6 +50,7 @@ explicitly names a tracked canonical result.
 | `visible_recall_sample.py` | Build an unbiased blinded sample for recall measurement. |
 | `visible_sheets.py` | Build blinded contact sheets for relaxation candidates. |
 | `watermark_benchmark_cohort.py` | Build the deterministic synthetic DWT-DCT and TrustMark cohort consumed by `watermark_benchmark.py`. |
+| `spectral_pipeline_probe.py` | Measure a prompt-grouped, phase-free spectral source-pipeline hypothesis without presenting it as SynthID detection. |
 | `watermark_benchmark_real_cohort.py` | Build a publication-cleared, provider-paired and content-stratified real-image cohort. |
 | `retrain_photo_classify.py` | CPU-retrain the 2026-08-31 photo heads from a sha256-keyed cache pack, no images. |
 | `publish_photo_classify_hf.py` | Upload the photo-classify card and freeze weights to Hugging Face `wiltodelta/raiw-photo-classify`. Manual; the Action `publish-photo-classify-hf.yml` is the write-token path. |

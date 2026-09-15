@@ -23,6 +23,45 @@ are explicit negatives, a strict rule can abstain, and any watermark claim uses
 an independent oracle. CLIP content embeddings and the 124-d origin-locked
 residual bank are different features for different jobs.
 
+### Phase-free spectral pipeline probe, 2026-09-15
+
+Mark's public
+[`bigdatamark/synthid-research`](https://huggingface.co/datasets/bigdatamark/synthid-research)
+corpus pairs 300 prompts across Gemini 2048-pixel JPEG, OpenAI 1254-pixel PNG,
+and FLUX 1280-pixel PNG exports. It is useful for testing source-pipeline
+features, but it is not a causal SynthID corpus: renderer, dimensions, encoder,
+and watermark state all change together.
+
+The paper-inspired probe in [`scripts/spectral_pipeline_probe.py`](../scripts/spectral_pipeline_probe.py)
+discards Fourier phase, subtracts each image's radial log-magnitude envelope,
+pools luma plus two opponent-color spectra, and fits a dual ridge classifier.
+Matching prompt ids stay together in a grouped five-fold evaluation. The
+256-pixel / 32x32-grid / ridge-1000 configuration was selected after an
+exploratory comparison on these same folds, so this is a development result,
+not blind validation. Its complete-corpus confusion matrix was:
+
+| Actual pipeline | Gemini | OpenAI | FLUX |
+| --- | ---: | ---: | ---: |
+| Gemini | 220 | 25 | 55 |
+| OpenAI | 33 | 219 | 48 |
+| FLUX | 75 | 48 | 177 |
+
+Accuracy was 616/900 (68.4%), against 33.3% chance. Applying each transform
+only to held-out rows gave 67.3% after a two-pixel top-left crop, 67.8% after a
+95% resize, 67.9% after JPEG quality 75, and 68.4% after Gaussian blur radius
+0.7. This is materially more transform-stable than the origin-locked lattice,
+but it remains a source/export classifier. There are no photographs, foreign
+generators beyond FLUX, independently generated 1K Gemini files, or same-image
+SynthID on/off pairs in the corpus. No runtime detector, threshold, or product
+verdict is justified by this result.
+
+The representation follows the frequency-domain premise of Zhang et al.,
+[*Detecting and Simulating Artifacts in GAN Fake Images*](https://arxiv.org/abs/1907.06515),
+not their ResNet-34 implementation. Their own post-processing results also
+support treating augmentation and architecture shift as first-class tests,
+rather than reading an untransformed source-classification score as watermark
+evidence.
+
 Krawetz's Gemini-chat TPR critique is a verifier-quality claim, not a
 feature we can ship. [Lead Stories, 2026-07](https://leadstories.com/analysis/2026/07/google-gemini-synthid-detector-confuses-results-within-same-chat.html)
 documented Gemini repeating the first file's SynthID verdict inside a
