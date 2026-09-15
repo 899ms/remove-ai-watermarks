@@ -21,6 +21,7 @@ from ._internal.watermark_profiles import (
     REMOVAL_MODULES,
     SDXL_ZIMAGE_PROFILE,
     resolve_adaptive_polish,
+    resolve_effective_profile,
     resolve_seed,
 )
 
@@ -267,12 +268,13 @@ class InvisibleEngine:
         import tempfile
 
         seed = resolve_seed(seed)
-        adaptive_polish = resolve_adaptive_polish(adaptive_polish, self._remover.model_profile)
+        effective_profile = resolve_effective_profile(self._remover.configured_profile, vendor)
+        adaptive_polish = resolve_adaptive_polish(adaptive_polish, effective_profile)
 
         if fidelity_anchor and text_manifest is None:
             raise ValueError("fidelity_anchor requires a text manifest")
         if text_manifest is not None:
-            if self._remover.model_profile == SDXL_ZIMAGE_PROFILE:
+            if effective_profile == SDXL_ZIMAGE_PROFILE:
                 raise ValueError("--text-manifest is not supported by the sdxl-zimage profile")
             if tile:
                 raise ValueError("--text-manifest is not calibrated with --tile")

@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING, Any
 from PIL import Image
 
 from remove_ai_watermarks._internal.watermark_profiles import (
-    AUTO_PROFILE,
     CHROMA_ZIMAGE_PROFILE,
     DEFAULT_PROFILE,
     INVISIBLE_EXTRA,
@@ -21,7 +20,7 @@ from remove_ai_watermarks._internal.watermark_profiles import (
     SDXL_ZIMAGE_PROFILE,
     global_offload_supported,
     normalize_profile,
-    resolve_auto_profile,
+    resolve_effective_profile,
     resolve_seed,
     resolve_strength,
 )
@@ -42,6 +41,14 @@ try:
 except ImportError:
     torch = None  # type: ignore[assignment]
     _HAS_TORCH = False
+
+
+def _dtype_for_profile(profile: str) -> Any:
+    """Return the weight dtype bound to a concrete regeneration profile."""
+    if profile == SDXL_ZIMAGE_PROFILE:
+        return torch.float16  # type: ignore[union-attr]
+    return torch.bfloat16  # type: ignore[union-attr]
+
 
 # Probed once at import. ``torch`` is imported above rather than probed because this
 # module needs the object, not just the answer.
@@ -111,13 +118,14 @@ class WatermarkRemover:
         controlnet_conditioning_scale: float = 1.0,
         cpu_offload: bool = False,
     ) -> None:
-        self.model_profile = normalize_profile(pipeline)
-        if self.model_profile not in PROFILE_CHOICES:
+        self.configured_profile = normalize_profile(pipeline)
+        if self.configured_profile not in PROFILE_CHOICES:
             raise ValueError(f"Unsupported pipeline '{pipeline}'. Use one of: {', '.join(PROFILE_CHOICES)}.")
-        # The auto profile resolves to a concrete engine per-image in
-        # remove_watermark, once the provenance vendor is known. It never
-        # resolves to sdxl-zimage, so the dtype below is correct either way.
-        self._auto = self.model_profile == AUTO_PROFILE
+        # Auto starts on the concrete Qwen fallback for preload, then resolves
+        # from the immutable configured profile for every image. Keeping the
+        # configured and active profiles separate prevents one image's vendor
+        # from becoming the next image's policy input.
+        self.model_profile = resolve_effective_profile(self.configured_profile, None)
         # There is no ``model_id`` parameter and no ``model_id`` attribute: each
         # profile pins a fixed model stack, and the dtype below is bound to that
         # stack's weights. Both used to be constructor overrides that existed only to
@@ -136,13 +144,10 @@ class WatermarkRemover:
                 "every identify command still run on CPU."
             )
 
-        if self.model_profile == SDXL_ZIMAGE_PROFILE:
-            # SDXL ships fp16 weights and an fp16-safe VAE; bf16 would give up the
-            # variant without buying anything on this architecture.
-            self.torch_dtype = torch.float16  # type: ignore[union-attr]
-        else:
-            # qwen-zimage, chroma-zimage, and auto all resolve to bf16 engines.
-            self.torch_dtype = torch.bfloat16  # type: ignore[union-attr]
+        # SDXL ships fp16 weights and an fp16-safe VAE. Qwen and Chroma use
+        # bf16; auto starts on the concrete Qwen fallback and switches together
+        # with its active profile per image.
+        self.torch_dtype = _dtype_for_profile(self.model_profile)
 
         self.cpu_offload = cpu_offload
         self.controlnet_conditioning_scale = controlnet_conditioning_scale
@@ -212,26 +217,6 @@ class WatermarkRemover:
 
         remove_ai_metadata(output_path, output_path, keep_standard=True)
 
-    def _resolve_chroma_strength(
-        self,
-        strength: float | None,
-        vendor: str | None,
-        source: Image.Image,
-    ) -> float:
-        """Resolve strength, running face detection for the chroma Google arm.
-
-        The content-adaptive Google floor needs a face count. YuNet is fast
-        (~50 ms) and the model download is already managed by the shared base.
-        """
-        if self.model_profile != CHROMA_ZIMAGE_PROFILE or (vendor or "").casefold() != "google":
-            return resolve_strength(strength, vendor, self.model_profile, size=source.size)
-        if strength is not None:
-            return strength
-        from remove_ai_watermarks._internal.two_stage_pipeline import detect_faces
-
-        face_count = len(detect_faces(source))
-        return resolve_strength(strength, vendor, self.model_profile, size=source.size, face_count=face_count)
-
     def remove_watermark(
         self,
         image_path: Path,
@@ -257,21 +242,21 @@ class WatermarkRemover:
         with Image.open(image_path) as opened:
             source = opened.convert("RGB")
 
-        # The auto policy resolves per-image once the provenance vendor is
-        # known, BEFORE the strength resolution so the right engine's floors
-        # are used. If the vendor changed the engine, reset the cached pipeline.
-        if self._auto:
-            resolved = resolve_auto_profile(vendor)
-            if resolved != self.model_profile:
-                self.model_profile = resolved
-                self._qwen_zimage_pipeline = None
+        # Resolve from the configured policy for every image, before strength
+        # resolution, so a previous image's vendor cannot pin the next one to
+        # its engine. Reset cached weights only when the concrete engine changes.
+        resolved = resolve_effective_profile(self.configured_profile, vendor)
+        if resolved != self.model_profile:
+            self.model_profile = resolved
+            self.torch_dtype = _dtype_for_profile(resolved)
+            self._qwen_zimage_pipeline = None
         if text_manifest is not None and self.model_profile == SDXL_ZIMAGE_PROFILE:
             raise ValueError("Verified text restoration is not supported by the sdxl-zimage profile")
         if text_manifest is not None and tile:
             raise ValueError("Verified text restoration is not calibrated with tiled diffusion")
         if fidelity_anchor and self.model_profile != QWEN_ZIMAGE_PROFILE:
             raise ValueError("The fidelity anchor is supported only by the qwen-zimage profile")
-        resolved_strength = self._resolve_chroma_strength(strength, vendor, source)
+        resolved_strength = resolve_strength(strength, vendor, self.model_profile, size=source.size)
         if not 0.0 <= resolved_strength <= 1.0:
             raise ValueError(f"Strength must be between 0.0 and 1.0, got {resolved_strength}")
 

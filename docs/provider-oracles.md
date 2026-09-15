@@ -42,6 +42,112 @@ The old Google SynthID Detector portal does not work. On 2026-09-07, the
 official `labs.google/synthid` entry point redirected a signed-in browser to a
 Google 404. Historical corpus rows may still name `synthid-portal`; that value
 describes how an old result was obtained and is not an operational surface.
+Google's newer Search verification entry point did not provide an independent
+oracle allowance in the session tested on 2026-09-13. Lens accepted the
+metadata-stripped, previously Gemini-positive image
+`sha256:c86feaf788df2c423eeb53fcaee52b74f12a8e83829f94414e6dec2966e6e62e`,
+but ordinary Lens results only described and matched the visible content. An
+explicit `Is this made with AI? Check whether it contains SynthID.` request in
+Search AI Mode invoked the technical verifier and returned `The verification
+tool's daily limit has been exceeded.` after that session's Gemini image
+verification allowance was already exhausted. Record this as a quota refusal,
+not a watermark verdict and not a second quota pool.
+
+A second Search check on 2026-09-15 used a real Qwen 0.15 no-face/no-text
+variant rather than a control. Lens and Search AI Mode accepted the upload, but
+both answered from visible-content reasoning and Web matches instead of
+returning a SynthID result. The exact Google-AI verification question even
+misattributed the file to an Imagen 4 Fast demonstration and invented a matching
+prompt. Search is therefore neither a usable independent oracle nor a substitute
+verdict when its response does not explicitly report the verification tool's
+SynthID outcome.
+
+Fresh independent-session rechecks on 2026-09-14 split: one returned `detected`
+for the same control while another returned `unable to process your request due
+to a tool error or quota limit`. A later session returned five usable real-variant
+verdicts and refused the sixth, while the other tested sessions still refused real
+variants. Recovery is therefore not a global calendar event. Google [documents approximately ten
+image checks in a rolling 24-hour window](https://support.google.com/gemini/answer/16722517?hl=en-GB),
+but that approximation is orientation rather than a per-session reset schedule.
+When a campaign is conserving that allowance, probe each explicitly selected
+session with its next real pending variant and record a refusal without assigning
+a watermark verdict. Reserve a positive-control probe for surface diagnosis, not
+ordinary batch allocation.
+
+A second independent-session sweep used one real pending variant per session and
+again obtained no watermark verdict: three responses explicitly reported a temporary
+verification quota, while one reported a verification tool-call error. Four completed immutable result batches preserve
+the exact uploads and settled responses. Twenty-four newly generated
+no-face/no-text scene variants form six four-rung ladders; the six lowest rungs
+were prepared in immutable batches, and none had been submitted at that point.
+The later completed sweep followed the planned lowest-rung-first escalation. Do
+not treat batch preparation or visual quality scores as SynthID results.
+
+A session recovered earlier than the estimate derived from the oldest usable call
+preserved locally. Its next real pending
+variant, Chroma 0.16 on the face carrier, returned `detected`; the immutable batch
+is complete and hash-verified. This demonstrates why estimated rolling-window
+times are retry guidance rather than reset timestamps, and closes the tested
+face bracket at `0.16 detected -> 0.22 not_detected` without spending a duplicate
+request on the already settled 0.22 file.
+
+The same recovered session returned `not_detected` for Chroma 0.40 on the Cyrillic
+carrier, then explicitly quota-refused SDXL CJK 0.35. The other selected sessions
+were checked with real pending CJK variants, not controls, and returned quota or
+tool limitations. One settled response exposed a request-specific instruction to
+wait 18 hours. Treat that as the retry point for that session and request class, not as a replacement
+for Google's documented approximate rolling 24-hour allowance or a universal
+reset time. All four sessions were unavailable again at their latest checks.
+Because one response did not distinguish service failure from quota, its real
+Chroma CJK 0.40 candidate was retried. This time the
+verifier explicitly named a temporary image-analysis quota. The refusal was
+recorded and the same bytes were prepared in a new immutable retry batch; no
+watermark verdict was inferred. One session was probed once more with a
+real Qwen 0.15 no-face/no-text candidate. It returned a verification-tool
+technical error rather than a SynthID result. That failure was recorded as
+`refused`, the batch was hash-verified complete, and a fresh immutable retry
+batch was prepared for the evidence-based session window.
+
+All four sessions returned usable results again on 2026-09-15, earlier than the
+previous retry guidance. The remaining real
+variants were submitted adaptively without controls. SDXL CJK remained detected
+at 0.35, 0.40, and 0.45 and cleared at 0.50. Chroma CJK remained detected at
+0.40 and cleared at 0.50. The two no-face/no-text carriers cleared Qwen at 0.15;
+Chroma cleared the flat carrier at 0.12 and the photographic carrier at 0.30
+after detections at 0.12 and 0.20; SDXL cleared the photographic carrier at 0.15
+and the quality-qualified flat carrier at 0.35. One quota refusal and one tool-call
+failure encountered while routing SDXL CJK 0.40 were kept as separate completed
+batches; another session then returned the usable `detected` result for the same
+upload hash. Every settled batch passed immutable-source, upload, manifest, and
+result verification. The observed early recovery reinforces that a retry time is
+guidance for the next real request, not a promised reset.
+
+A same-day production-boundary replication then used three new independent
+Gemini-generated controls: busy CJK plus many faces, flat CJK without faces, and a
+portrait plus dense CJK. Only processed variants were submitted. Across Qwen 0.35,
+Chroma 0.50, and SDXL 0.50, all nine profile-by-carrier cells returned
+`not_detected`. The night-market lower rungs Chroma 0.40 and SDXL 0.45 also returned
+`not_detected`; they do not supersede the earlier harder-source detections at those
+rungs. Two sessions returned explicit quota failures during this pass, one
+candidate retry also hit quota, and a byte-normalized duplicate after the usable
+SDXL result returned a tool-call error. Those four calls were recorded as
+`unreachable`, not spliced into the nine usable verdicts. All result batches were
+hash-verified.
+Google did not expose a reset timestamp: the returned quota text supports only
+waiting and retrying, not a universal 24-hour claim.
+
+The documented Vertex AI Media Studio verification flow was also unavailable
+in the live console on 2026-09-14. Its old console URL redirected to Agent Media
+Studio after the Vertex-to-Agent Platform rename. The current Image playground
+was inspected in eligible configurations; its task menu exposed generation and image
+editing but no watermark upload or validation action. The deprecated Python SDK
+can still resolve `imageverification@001` to its publisher-model endpoint. A
+2026-09-15 request reached `predict`, but the real Qwen 0.15 variant returned
+HTTP 403 `The caller does not have permission` in both tested configurations. The current
+Python reference still documents `WatermarkVerificationModel.verify_image`, but
+the backing model was access-restricted in both tested configurations and the SDK path is
+past its announced removal date. Recheck the live console and a real pending
+variant before adding Search or Agent Media Studio to the surface table.
 Adobe Inspect and local C2PA, DWT-DCT, TrustMark, and research detectors are
 useful evidence readers, not interchangeable provider pixel-watermark oracles.
 
@@ -306,6 +412,17 @@ response settles as `indeterminate`, not clean. Meta's live positive wording
 changed from `AI signatures from Meta were found` to `AI signatures were found`
 by 2026-09-07; both exact forms remain accepted.
 
+Isolation is a transport property, not a verdict requirement. On 2026-09-15,
+the isolated OpenAI runner returned one generic error and two Cloudflare
+refusals for a prepared three-file batch. Uploading those exact prepared hashes
+through an authenticated first-party browser session reached the official verifier
+and returned explicit SynthID results. A later Chroma 0.12 upload remained in
+`Verifying` for more than 90 seconds and was recorded as indeterminate rather
+than clean. The official API then returned HTTP 200 and SynthID `not_detected`
+for the same processed source hash. Keep each route in its own immutable batch;
+do not splice an isolated-runner failure and a first-party browser or API verdict into
+one response.
+
 ## OpenAI API
 
 The one automated path calls the hardened metadata-independent adapter already
@@ -331,6 +448,20 @@ only even though the current API surface also accepts audio.
 OpenAI documents `not_detected` as absence of a supported signal, not proof that
 content was not AI-generated. The API must not become an adaptive removal loss
 or automatic search loop. See [`synthid.md`](synthid.md) for the oracle boundary.
+
+The fresh no-face/no-text calibration on 2026-09-15 used three independent
+official API requests after the public Web surface stalled. All three returned HTTP 200
+with C2PA `not_present`: Chroma 0.12 and SDXL 0.06 were SynthID `not_detected`,
+while SDXL 0.04 was `detected`. Together with settled Web results for the same
+carrier, the tested 0.02-grid brackets are Qwen `0.04 detected -> 0.06
+not_detected`, Chroma `0.10 detected -> 0.12 not_detected`, and SDXL `0.04
+detected -> 0.06 not_detected`. The generated source control was not uploaded.
+
+A separate face-plus-multilingual-text carrier then returned Qwen `0.04
+detected -> 0.06 not_detected`, Chroma 0.10 `not_detected`, and SDXL 0.04
+`not_detected`. The lower Chroma and SDXL results did not change the global
+candidate because the no-face/no-text carrier remained the limiting OpenAI
+stratum.
 
 ## Microsoft API
 
@@ -376,8 +507,8 @@ error rate estimates:
 
 | Surface | Route and repetitions | Recorded result |
 | --- | --- | --- |
-| Gemini Web | User's real Chrome, three authenticated account slots | 3/3 `not_detected`; Gemini reported no reliable Google AI signal. |
-| OpenAI API | Three named API-key slots, direct transport | 3/3 SynthID `not_detected`; C2PA `not_present`; all responses were HTTP 200. |
+| Gemini Web | Official browser verifier, three independent authenticated sessions | 3/3 `not_detected`; Gemini reported no reliable Google AI signal. |
+| OpenAI API | Official API, three independent requests | 3/3 SynthID `not_detected`; C2PA `not_present`; all responses were HTTP 200. |
 | OpenAI Web | ThorData GB, isolated Playwright | `indeterminate`; after accepting the prepared upload, the provider returned `Something went wrong. Please try again.` |
 | Microsoft API | Direct API, private hash-matched Azure blob | HTTP 202, operation `Succeeded`; Watermark `not_detected`, C2PA `absent`, provider outcome `NoProvenanceDetected`. |
 | Microsoft Web | ThorData US, isolated Playwright | `not_detected`; the page's exact settled label was `Inconclusive`. |

@@ -1665,7 +1665,8 @@ The current profiles are `qwen-zimage` (the default), `sdxl-zimage`,
 `qwen` and `default` were removed rather than kept as a CPU path, and are
 rejected rather than aliased onward. `auto` is a deterministic per-cohort
 selection policy:
-chroma-zimage for Microsoft, qwen-zimage for OpenAI, Google, Meta, and unknown.
+sdxl-zimage for Google, chroma-zimage for Microsoft, and qwen-zimage for
+OpenAI, Meta, and unknown.
 It does not run a learned router or classify the image's genre.
 
 `qwen-zimage` normally resolves global denoise from image area for unknown content.
@@ -1936,22 +1937,20 @@ prompt, which was never calibrated against Chroma1), guidance 5.0, and the
 calibrated `ceil(4 / strength)` requested-step schedule.
 `CHROMA_NOMINAL_STEPS = 4` is a nominal count: Chroma rounds the start
 index, so strengths 0.09 and 0.17 execute five steps, while 0.20, 0.125,
-and 0.40 execute four. Preserve those requests rather than changing the
+and 0.50 execute four. Preserve those requests rather than changing the
 calibration to force four effective steps. There is no Canny
 conditioning: the floors were measured on a plain strength pass.
 
 The flat vendor floors (`CHROMA_ZIMAGE_*_STRENGTH` in watermark_profiles):
-OpenAI 0.20 and Microsoft 0.125, Google 0.40 for zero-face content / 0.125 when
-faces are detected (a content-adaptive arm from the clean face-count split
-in the calibration: both text cards need 0.25, both face fixtures clear at
-0.12, so the YuNet detector -- already loaded for the face stage -- routes
-the operating point), and Meta 0.17 (ABOVE qwen's, because Chroma1's
-per-fixture boundaries scatter wider). The matched-strength addendum in the
-research doc is the honest read: at the strength each image actually needs,
-Chroma1 regenerates better almost everywhere except face identity (which the
-inherited Z-Image face stage supplies); at the flat worst-case floors it
-destroys dense text and face identity. The Google face-content arm is the
-first shipped piece of the content-adaptive policy. A Meta arm was measured
+OpenAI 0.20, Microsoft 0.125, Google 0.50, and Meta 0.17. The source-fresh
+Google sweep supersedes the older 0.40 zero-face / 0.125 face split: fresh CJK
+remained detected at 0.40, and a face-plus-text carrier did not support treating
+face presence as evidence for the easy arm. The runtime has no independently
+measured text-content gate, so every Google carrier now uses the replicated global
+floor. The matched-strength addendum in the research doc remains useful history:
+at the strength each image actually needs, Chroma1 regenerates better almost
+everywhere except face identity (which the inherited Z-Image face stage supplies),
+but high flat floors can destroy dense text and face identity. A Meta arm was measured
 on 2026-08-30/31 (docs/chroma1-engine-research.md, expansion section) and
 does not ship: first-cleans from 0.03 to 0.10 form a continuum,
 `flat_ratio` overlaps the hard and easy clusters, and a high-flat
@@ -1999,12 +1998,212 @@ Four things are architecture-bound and swap with the model: the ControlNet
 AuraFlow shift), and the latent grid (8 px against Qwen's 16).
 
 **Strength is architecture-bound too, and that is the easy mistake.** An SDXL global
-pass leaves SynthID at the strength Qwen needs: verified through the Gemini app on a
-native 2816x1536 original, 0.154 is FOUND while 0.20, 0.25 and 0.30 are clean. So this
+pass can leave SynthID at the strength Qwen needs. The source-fresh 2026-09-15
+matrix found its limiting Google CJK carrier detected through 0.45 and clean at
+0.50, with independent flat-text and face-plus-text replication at 0.50. So this
 profile takes a vendor policy (`SDXL_ZIMAGE_OPENAI_STRENGTH` 0.15,
-`SDXL_ZIMAGE_GEMINI_STRENGTH` 0.25, unknown following Gemini) rather than
+`SDXL_ZIMAGE_GEMINI_STRENGTH` 0.50, unknown following Google) rather than
 `resolution_adaptive_denoise`. Flat values are what was measured; no size dependence
 has been established for this stage, so none is asserted.
+
+#### Cross-profile strength sweep, 2026-09-14
+
+A fresh single-source, seed-0 sweep compared qwen-zimage, chroma-zimage, and
+sdxl-zimage on the same provider-specific carriers. The original content matrix covered
+photorealistic scenes, flat low-detail art, single and multiple faces, dense Latin,
+CJK and Cyrillic text, multilingual posters, and faces plus text. Meta completed
+48/48 real variants, Microsoft 12/12, the original OpenAI sweep 36/36, and Google
+44/48. Thirteen unique adaptive OpenAI extension candidates later closed the two
+missing content quadrants. The minimum
+tested global strengths that cleared every completed stratum were:
+
+| Provider | qwen-zimage | chroma-zimage | sdxl-zimage |
+| --- | ---: | ---: | ---: |
+| OpenAI | 0.06 | 0.12 | 0.06 |
+| Microsoft | 0.10 | <= 0.04 | <= 0.08 |
+| Meta | 0.06 | 0.10 | <= 0.08 |
+| Google | 0.35 | 0.50 | 0.50 |
+
+`<=` means the first tested rung already cleared, not that its lower boundary is
+known. Google qwen cleared both CJK and Cyrillic only at 0.35; its face series was
+non-monotonic. Google SDXL cleared Cyrillic at 0.35 after detections through 0.28,
+but CJK remained detected at 0.35, 0.40, and 0.45 before clearing at 0.50. Google
+Chroma CJK remained detected through 0.40 and cleared at 0.50; Cyrillic cleared at
+0.40. Chroma face+text first cleared at
+0.22 after detections at 0.08 and 0.16; the face carrier cleared at 0.22 after a
+detection at 0.08. A recovered-quota recheck on 2026-09-15 also detected the face
+carrier at 0.16, closing that tested bracket at `0.16 detected -> 0.22 clean` and
+showing that the shipped 0.125 face arm is too low for this carrier. These are
+candidate rungs at this stage of the study, not replacement defaults: there is one
+source and one seed per case. The independent three-carrier replication below later
+closed the production seed-0 decision; size, crop/resize, JPEG, local-edit, and broader
+multi-seed robustness remain separate holdouts.
+
+The original OpenAI set had faces-only and multilingual text-only carriers but no
+explicit no-face/no-text carrier. A fresh 1536x1024 photorealistic rocky-coast scene
+closed that stratum on 2026-09-15. The official OpenAI verifier found Qwen 0.04 and
+Chroma 0.10, then cleared Qwen 0.06 and Chroma 0.12. It found SDXL 0.04 and cleared
+0.06. These are 0.02-grid brackets, not mathematical minima. The public Web verifier
+settled the earlier points and exposed SynthID separately from C2PA. A later Chroma
+0.12 Web request remained in `Verifying` for more than 90 seconds, so it was recorded
+as indeterminate; the preferred official Content Provenance API returned
+`not_detected` for that same processed source hash. Three independent official API
+requests returned HTTP 200 for Chroma 0.12, SDXL 0.04, and SDXL 0.06 respectively. No source control was
+submitted.
+
+The other missing OpenAI stratum, one face plus multilingual text, was added with a
+second 1536x1024 carrier. The official API found Qwen 0.04 and cleared 0.06, while
+Chroma 0.10 and SDXL 0.04 already cleared. All responses were HTTP 200 with C2PA
+`not_present`, and original-size review found the face identity, Latin, CJK, Cyrillic,
+and date text preserved at every generated rung. This stratum does not raise any
+global OpenAI candidate; the no-face/no-text scene remains the limiting case for
+Chroma and SDXL.
+
+At the original non-Google candidate rungs, Chroma had the best mean quality in all
+three provider cohorts. For Meta, mean LPIPS/SSIM was 0.0320/0.8882 for Chroma 0.10,
+0.0357/0.8595 for Qwen 0.06, and 0.0531/0.8503 for SDXL 0.08. For OpenAI it was
+0.0183/0.8763, 0.0192/0.8595, and 0.0304/0.8459 respectively over the original three
+carriers. Recomputed over all five OpenAI carriers at the freshly verified candidates,
+Qwen 0.06 has the best LPIPS, SSIM, and edge F1 at 0.03073, 0.82461, and 0.89141.
+Chroma 0.12 has the best MAE by a narrow margin at 6.42, but its LPIPS/SSIM is worse
+at 0.05057/0.80940 and Qwen narrowly leads PSNR 27.99 to 27.97 dB; Chroma's
+no-face/no-text scene is the main loss.
+SDXL 0.06 is third on the aggregate perceptual and structural metrics at
+0.03766/0.77202, while keeping the mean Laplacian ratio closest to one. Original-size
+review agrees that there is no single winner on every criterion, but Qwen is the best
+overall OpenAI candidate when perceptual similarity, structure, edges, faces, and text
+are weighted together. Microsoft's
+single flat carrier likewise favored Chroma 0.04 at 0.00265/0.99621 over Qwen
+0.10 at 0.00347/0.99426 and SDXL 0.08 at 0.00324/0.99566; this is a carrier
+comparison, not a multi-source mean. At Google 0.35, SDXL preserved substantially
+more quality than Qwen (mean LPIPS 0.0655 versus 0.1576, SSIM 0.7285 versus
+0.5457), although SDXL needed 0.50 rather than 0.35 on the limiting CJK carrier.
+On that carrier, SDXL 0.50 measured LPIPS/SSIM/PSNR 0.1041/0.7437/23.93 dB,
+substantially better than Chroma 0.50 at 0.2129/0.5853/20.74 dB and Qwen 0.35 at
+0.1834/0.5550/18.93 dB. The newly cleared Chroma 0.22 face and face+text points also lost to
+SDXL at its corresponding tested rungs on every reported metric: LPIPS/SSIM was
+0.0476/0.6657 versus 0.0318/0.7036 for faces, and 0.0506/0.6359 versus
+0.0426/0.7016 for face+text. Original-resolution visual review agreed with that
+direction: Qwen
+0.35 changed the last glyph of the Cyrillic `УЛЫБКОЙ` into a Latin-looking `N` and
+altered substantially more wood grain and background structure; Chroma 0.40 and
+SDXL 0.35 retained the word, with SDXL visually closest to the source. Chroma 0.22
+preserved foreground face identity and text legibility but visibly changed
+background people, room structure, lighting, and confetti. The
+official-oracle access and rolling-quota caveats are recorded in
+[`provider-oracles.md`](provider-oracles.md).
+
+The original Google carriers omitted the explicit no-face/no-text stratum. A
+2026-09-14 extension added two real Gemini-generated 2752x1536 carriers: a
+photorealistic alpine lake and a low-detail geometric desert. At the current
+candidate rungs, the flat carrier remained close under all three profiles;
+LPIPS/SSIM was 0.0237/0.9654 for Qwen 0.35, 0.0120/0.9706 for Chroma 0.40,
+and 0.0134/0.9655 for SDXL 0.35. On the photographic carrier, every profile
+visibly regenerated scene detail. SDXL 0.35 was least destructive at
+0.1174/0.4933, ahead of Qwen 0.35 at 0.2070/0.4120 and Chroma 0.40 at
+0.2216/0.4229. Original-resolution review found major mountain, shoreline,
+vegetation, rock, and reflection changes in Qwen and Chroma; SDXL retained the
+main composition and geometry but still changed fine detail. Full four-rung
+ladders produced 24 variants across the two carriers and three profiles. After the
+independent session allowances recovered on 2026-09-15, the official verifier cleared
+both Qwen carriers at the first 0.15 rung. Chroma's flat carrier cleared at 0.12,
+while its photographic carrier closed at `0.20 detected -> 0.30 clean`. SDXL's
+photographic carrier cleared at 0.15 and its quality-qualified flat 0.35 carrier
+cleared directly. These scene cases therefore do not raise the global Google
+candidate above the text-bound values in the table.
+The SDXL flat ladder was quality-non-monotonic: 0.15 introduced severe texture
+and scored LPIPS 0.1283, while 0.35 looked cleaner and scored 0.0134. Repeating
+0.15 and 0.22 with adaptive polish disabled changed the polished outputs by only
+0.51 and 0.57 mean byte levels per channel and left LPIPS effectively unchanged.
+The artifact therefore comes from the low-step SDXL reconstruction, not polish.
+The 0.15 flat variant is rejected before oracle use; 0.35 is the
+quality-qualified SynthID candidate for that one path.
+
+A Chroma extension was run on an isolated CUDA research worker from the same
+`c4edc282` checkout. Strength 0.50 retained readable
+CJK and Cyrillic but was already borderline: LPIPS/SSIM/PSNR was
+0.2129/0.5853/20.74 dB and 0.2268/0.5490/20.83 dB respectively. At 0.60 both
+scripts were visibly destroyed and LPIPS exceeded 0.42. The official verifier
+subsequently detected CJK 0.40 and cleared 0.50, making the borderline 0.50 rung the
+fresh global Chroma candidate. Strength 0.60 remains rejected on fidelity.
+
+The corresponding SDXL CJK extension used the same checkout and an isolated CUDA
+research worker. The official verifier detected 0.40 and 0.45 and cleared 0.50.
+At 0.50, LPIPS/SSIM/PSNR was 0.1041/0.7437/23.93 dB; original-resolution review
+found the CJK text fully legible and the scene recognizably preserved. SDXL is the
+best-quality Google candidate on the limiting carrier.
+
+#### Google boundary replication, 2026-09-15
+
+Three new Gemini-generated controls replicated the hard boundary on independent
+content: a busy night market with dense CJK and many faces, a flat CJK poster without
+faces, and a portrait reading a dense CJK newspaper. An isolated CUDA run generated
+both seed 0 and seed 1 at the candidate and neighboring lower rungs, 36 variants total. Production
+uses the fixed seed 0, and only processed seed-0 variants were sent to the official
+verifier; source controls were not uploaded.
+
+At the candidate rungs, the official verifier returned `not_detected` for all nine
+profile-by-carrier cells: Qwen 0.35, Chroma 0.50, and SDXL 0.50. A separate lower-rung
+night-market check also cleared Chroma 0.40 and SDXL 0.45, but those two results do
+not lower the policy because the original fresh CJK carrier remained detected there.
+Three quota failures and one duplicate post-success tool-call failure were recorded
+as `unreachable` in separate immutable batches and excluded from the watermark
+count. Every settled batch passed source, upload, manifest, and result hash
+verification.
+
+Quality over all three new carriers and both seeds selected SDXL for Google auto
+routing. Mean LPIPS/SSIM/PSNR was 0.0609/0.8178/25.15 dB for SDXL 0.50,
+0.0980/0.7055/21.85 dB for Qwen 0.35, and 0.1269/0.6909/22.53 dB for Chroma 0.50.
+Original-resolution review agreed: SDXL best preserved the night-market headline,
+newspaper layout, faces, and the flat poster. Therefore the production Google floors
+are Qwen 0.35, Chroma 0.50, and SDXL 0.50, and `auto` routes Google to SDXL.
+
+A localized follow-up checked that aggregate image metrics were not hiding face or
+text failures. InsightFace `buffalo_l` matched three faces in the newspaper scene and
+15 in the night market one-to-one. Across the four scene-seed pairs, SDXL beat Qwen
+on ArcFace cosine in three and lost one, and beat Chroma in all four. That identity
+result is directional but small: the two-sided sign-test p-values are 0.625 and
+0.125, respectively. Face-crop LPIPS favored SDXL in all four pairs against both
+other profiles, also p=0.125 with only four non-tied pairs. This supports, but does
+not by itself prove, an identity advantage over Qwen.
+
+Text was scored separately in seven manually verified fixed regions whose originals
+all produced an exact OCR line: the newspaper masthead, headline, two halves of its
+subhead, the night-market headline, and two poster lines. The metric was the closest
+OCR-line normalized edit distance to that fixed target, across both seeds. SDXL's
+mean was 0.0119 with 13/14 exact region-seed results, versus 0.3770 and 7/14 for Qwen
+and 0.5374 and 4/14 for Chroma. In paired sign tests SDXL was better than Qwen in
+seven non-tied cells and worse in none (two-sided p=0.015625), and better than Chroma
+in ten and worse in none (p=0.001953125). These results cover the selected prominent
+lines, not arbitrary text preservation: fine newspaper body copy was regenerated as
+pseudotext by every profile. The safe claim is therefore that SDXL was the relative
+quality winner on these replicated Google carriers, not that it preserves faces or
+text losslessly.
+
+Two current-floor extensions closed the remaining content quadrants. On the
+face-only carrier, rerun at Qwen 0.35, Chroma 0.50, and SDXL 0.50 for seeds 0 and
+1, InsightFace matched all 18 faces. SDXL had the highest mean ArcFace cosine in
+both seeds, 0.828 and 0.842, versus 0.780/0.794 for Chroma and 0.744/0.773 for
+Qwen. Chroma narrowly won face-crop LPIPS at 0.059/0.058, versus 0.060/0.063 for
+SDXL, while SDXL was much closer over the whole frame. Its face Laplacian ratios
+of 1.152/1.176 also show slight texture amplification; Qwen and Chroma instead
+smoothed face detail to roughly half the source level. Original-resolution review
+therefore favors SDXL for overall composition and identity, but not every local
+face metric.
+
+The no-face/no-text photographic and flat-graphic carriers were also rerun at the
+same current floors and two seeds. On the photographic scene, SDXL had the best
+LPIPS/SSIM in both seeds: 0.345/0.457 and 0.339/0.461, ahead of Qwen at
+0.413/0.412 and 0.404/0.414 and Chroma at 0.568/0.395 and 0.579/0.401.
+Original-resolution review likewise found SDXL closest, although every profile
+regenerated major landscape detail. The flat graphic reversed the LPIPS result:
+Qwen scored 0.045/0.042, Chroma 0.068/0.065, and SDXL 0.099/0.088; all SSIM values
+were 0.962-0.965. Visual review found model-specific gradient, object, or sun-halo
+artifacts in every output. One carrier and two seeds do not justify a new
+content-adaptive route. Together with the text-only and face-plus-text replication,
+these extensions cover all four primary face/text quadrants at the shipped Google
+floors, while also showing why `auto` is a relative default rather than a universal
+per-image optimum.
 
 `requested_steps` is shared by SDXL and Chroma in `two_stage_pipeline.py`,
 which also owns `_target_size` with each profile's grid passed explicitly.
@@ -2092,7 +2291,7 @@ spread): 0.06 + (0.0525 - 0.015) = 0.0975, rounded up to **0.1**. Shipped as
 `QWEN_ZIMAGE_META_STRENGTH`; `--vendor meta` / `InvisibleOptions.vendor` names
 the cohort explicitly, implying the scrub runs (naming the cohort asserts the
 watermark is present). sdxl-zimage has no measured Meta rung and an
-explicit meta vendor there falls to the conservative unknown 0.25. The default
+explicit meta vendor there falls to the conservative unknown 0.50. The default
 resolution-adaptive curve (~0.1305 at 2.56 MP) also clears every measured
 source, so default behavior needed no change. Oracle verdicts carry a
 generation ID and creation timestamp embedded in the watermark payload; both

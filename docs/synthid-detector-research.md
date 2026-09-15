@@ -95,10 +95,13 @@ Two real but non-local verifier paths surfaced. The historical Vertex SDK
 exposed `WatermarkVerificationModel.from_pretrained("imageverification@001")`.
 The class still exists in `google-cloud-aiplatform` 1.165.1, but warns that it
 was deprecated 2025-06-24 with removal scheduled for 2026-06-24. Calls in two
-projects with Vertex enabled now reject the publisher model id as invalid. A
-repository using `response.watermark_detected` is also stale: the actual SDK
-property was `watermark_verification_result`, backed by the prediction's
-`decision` field.
+eligible Vertex configurations were rechecked on 2026-09-15 with a real processed
+variant and correctly attributed user credentials. The publisher
+model resolved, but both `predict` calls returned HTTP 403 `The caller does not
+have permission`. The surviving class reference therefore does not establish
+public access to the backing model. A repository using
+`response.watermark_detected` is also stale: the actual SDK property was
+`watermark_verification_result`, backed by the prediction's `decision` field.
 
 A newer unlisted upload route,
 `POST https://synthid.googleapis.com/upload/v1:verifyContent`, is live enough

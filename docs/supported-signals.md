@@ -157,7 +157,8 @@ Current diffusion pipeline values, all CUDA-only:
 - `qwen-zimage`, the default;
 - `sdxl-zimage`, the same recipe and the same face stage on an SDXL global pass;
 - `chroma-zimage`, the same face stage on a Chroma1 global pass;
-- `auto`, chroma-zimage for Microsoft provenance, otherwise qwen-zimage.
+- `auto`, sdxl-zimage for Google provenance, chroma-zimage for Microsoft,
+  otherwise qwen-zimage.
 
 The `controlnet`, `sdxl`, `qwen` and `default` values were removed. A retired name
 is rejected at parse time rather than remapped onto a surviving profile.

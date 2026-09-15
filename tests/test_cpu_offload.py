@@ -30,14 +30,15 @@ OFFLOAD_SUPPORT_CASES = (
     (QWEN_ZIMAGE_PROFILE, True),
     (CHROMA_ZIMAGE_PROFILE, False),
     (SDXL_ZIMAGE_PROFILE, False),
-    # Unresolved auto appears only in preload, which builds qwen-zimage.
+    # Auto preloads its concrete Qwen fallback before an image vendor is known.
     (AUTO_PROFILE, True),
 )
 
 
 def _remover(profile: str, cpu_offload: bool) -> WatermarkRemover:
     remover = WatermarkRemover.__new__(WatermarkRemover)
-    remover.model_profile = profile
+    remover.configured_profile = profile
+    remover.model_profile = QWEN_ZIMAGE_PROFILE if profile == AUTO_PROFILE else profile
     remover.cpu_offload = cpu_offload
     remover.device = "cuda"
     remover.torch_dtype = None

@@ -115,17 +115,29 @@ frozen text regions would keep the watermark
 ([text protection research](text-protection-research.md)).
 
 `qwen-zimage` is the default profile. `sdxl-zimage` and `chroma-zimage` keep
-the same face stage and swap the global model. `auto` picks chroma-zimage for
-Microsoft provenance and qwen-zimage otherwise. All are CUDA only.
+the same face stage and swap the global model. `auto` picks sdxl-zimage for
+Google provenance, chroma-zimage for Microsoft, and qwen-zimage otherwise.
+All are CUDA only.
 Qwen and SDXL condition the global stage on a canny edge map, which preserves
 structure but not identity or exact texture. Chroma1 is a plain strength pass
 without Canny.
-Existing face evaluations favor `qwen-zimage`, but there is no blanket fidelity
-ordering across content types. A fixed-seed, three-scene text comparison at the
-profile defaults found no stable winner: SDXL won one poster, Qwen won one, and
-the Chinese sign tied. Both are large, slow, and may still alter small text or
-difficult faces. The measurements and their OCR and oracle caveats are tracked
-in [`data/evaluations/fidelity/`](../data/evaluations/fidelity/README.md).
+There is no blanket fidelity ordering across providers or content types. At the
+current Google operating points, however, the 2026-09-15 three-carrier replication
+favored `sdxl-zimage` in whole-image metrics, localized face-crop LPIPS, and seven
+manually verified prominent CJK text regions. It retained 13/14 target lines exactly,
+versus 7/14 for Qwen and 4/14 for Chroma. ArcFace identity was less decisive against
+Qwen: SDXL won three of four scene-seed pairs and lost one, too few pairs for a
+significant result. A separate 18-face carrier at the current floors favored SDXL
+on ArcFace identity and whole-frame similarity in both seeds, while Chroma narrowly
+won face-crop LPIPS. SDXL also won a no-face/no-text photographic carrier, but Qwen
+won LPIPS on a flat graphic; one carrier cannot support content-adaptive routing.
+All three profiles regenerated fine newspaper body copy as pseudotext, so the result
+selects a relative Google default rather than promising exact face or text
+preservation. Both models are large, slow, and may still alter small text or difficult
+faces. The general fidelity corpus and its OCR caveats are tracked in
+[`data/evaluations/fidelity/`](../data/evaluations/fidelity/README.md), while the
+current-floor Google replication is recorded in
+[`module-internals.md`](module-internals.md#google-boundary-replication-2026-09-15).
 A global Z-Image Turbo prototype preserved text substantially better at low
 strength, but it has no useful cross-provider operating point and is not a
 supported profile. Automatic text restorers also remain research-only:
@@ -249,18 +261,18 @@ were measured for each.
 
 `qwen-zimage` reads unknown content from the resolution-adaptive denoise curve.
 Measured provider cohorts instead take flat operating points: OpenAI `0.07675`,
-Google `0.27`, and Microsoft InvisMark `0.15`. OpenAI and Microsoft add one full
+Google `0.35`, and Microsoft InvisMark `0.15`. OpenAI and Microsoft add one full
 observed cross-source boundary spread to the worst clean source; Microsoft's three
 first-clean boundaries were `0.04125`, `0.055`, and `0.095`, giving `0.14875` before
-rounding up. Google's candidate was separately repeated across three valid sources
-and three accounts. The small corpora make these operating points, not universal
-thresholds.
+rounding up. Google's source-fresh candidate cleared three independent CJK carrier
+types after the original content matrix found CJK and Cyrillic to be the limiting
+strata. The small corpora make these operating points, not universal thresholds.
 
 `sdxl-zimage` reads it from the C2PA issuer, on a flat ladder:
 
 - OpenAI: `0.15`;
-- Google: `0.25`;
-- unknown: `0.25`, following the stricter of the two.
+- Google: `0.50`;
+- unknown: `0.50`, following the stricter of the two.
 
 An SDXL global pass needs more denoise than Qwen at the same fidelity, and the
 values are flat rather than a curve because flat values are what was measured: each
@@ -276,13 +288,13 @@ established for that stage.
   boundary gives `0.20`, verified clean three times on both, while qwen-zimage
   cleared both at its existing `0.07675` operating point;
 - Microsoft InvisMark: `0.125` (below qwen's `0.15`);
-- Google: `0.40` for zero-face content (above qwen's `0.27`; at this floor the
-  regeneration destroys dense text and collapses face identity -- the tradeoff
-  that motivates the adaptive arm below), or `0.125` when YuNet detects at
-  least one face (both measured face fixtures clear at 0.12 with zero
-  cross-source spread; oracle-verified 2026-08-30);
+- Google: `0.50`. A source-fresh CJK carrier remained detected at `0.40` and
+  cleared at `0.50`; that candidate then cleared independent busy-scene,
+  flat-text, and face-plus-text carriers. The old YuNet-only `0.125` face arm
+  was removed because face detection cannot distinguish easy face-only images
+  from harder face-plus-text content;
 - Meta Content Seal: `0.17` (above qwen's `0.1`);
-- unknown: `0.40`, following the strictest measured cohort.
+- unknown: `0.50`, following the strictest measured cohort.
 
 An explicit `--strength` overrides all three. The defaults are operating points,
 not universal guarantees. Near a removal threshold, different content or a
@@ -296,8 +308,8 @@ are certified at a fixed seed. The live resolver is
 | --- | --- |
 | `qwen-zimage` | CUDA only, large model stack, and limited broad certification across seeds and content. |
 | `sdxl-zimage` | CUDA only. Its strength ladder is flat per vendor, not a resolution curve, because flat values are what was measured. |
-| `chroma-zimage` | CUDA only. Higher Google and Meta floors than qwen; Google face content uses 0.125 instead of 0.40. |
-| `auto` | CUDA only. Routes Microsoft to chroma-zimage and everything else to qwen-zimage. |
+| `chroma-zimage` | CUDA only. Higher Google and Meta floors than qwen; no safe content-adaptive Google arm exists yet. |
+| `auto` | CUDA only. Routes Google to sdxl-zimage, Microsoft to chroma-zimage, and everything else to qwen-zimage. |
 
 Only manually verified `vae-glyphs` is an optional production stage, and it is
 experimental rather than a default.

@@ -89,8 +89,8 @@ run on.
 
 Pipeline profiles: `qwen-zimage` (the default), `sdxl-zimage`, `chroma-zimage`,
 `auto`. All are CUDA-only and all install from the same `qwen-zimage` extra.
-`auto` picks the engine from the file's own provenance -- chroma-zimage for
-Microsoft, qwen-zimage for OpenAI (since CLI 0.39.0), Google, Meta and unknown
+`auto` picks the engine from the file's own provenance -- sdxl-zimage for Google,
+chroma-zimage for Microsoft, qwen-zimage for OpenAI (since CLI 0.39.0), Meta and unknown
 -- so prefer it over naming an engine when the user has no reason to care. `sdxl-zimage` is the
 heavier alternative and `chroma-zimage` is the Apache-2.0 global stage.
 

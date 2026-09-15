@@ -227,8 +227,8 @@ _PIPELINE_HELP = (
     "followed by SAM-masked Z-Image face repair; sdxl-zimage = the same recipe and the "
     "same face stage on an SDXL global pass, which needs more denoise; chroma-zimage = "
     "the same face stage on an Apache-2.0 Chroma1 global pass; auto = pick the engine "
-    "from the provenance (chroma-zimage for Microsoft, qwen-zimage for "
-    "OpenAI/Google/Meta/unknown). "
+    "from the provenance (sdxl-zimage for Google, chroma-zimage for Microsoft, "
+    "qwen-zimage for OpenAI/Meta/unknown). "
     "All are CUDA-ONLY -- install the qwen-zimage extra. There is no CPU or MPS profile for "
     "invisible-watermark removal."
 )

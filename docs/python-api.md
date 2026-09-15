@@ -765,8 +765,8 @@ engine = InvisibleEngine(pipeline="sdxl-zimage")
 
 The `qwen-zimage` extra is required for every profile, including `auto`: each
 concrete engine runs the same DiffSynth Z-Image face stage. `pipeline="auto"`
-selects chroma-zimage for Microsoft provenance and qwen-zimage
-otherwise, after the vendor is known and before strength resolution.
+selects sdxl-zimage for Google provenance, chroma-zimage for Microsoft, and
+qwen-zimage otherwise, after the vendor is known and before strength resolution.
 
 The opt-in verified-text stage uses the same `text_manifest` argument as the CLI:
 
@@ -781,9 +781,10 @@ engine.remove_watermark(
 Install `remove-ai-watermarks[text-restoration]`. The manifest schema and safety
 constraints are documented in the CLI guide. The engine verifies its decoded RGB
 hash before loading the diffusion models. Qwen and Chroma reconstruct the donor with
-the VAE already loaded for the one profile selected by `auto`; no second generative
-profile runs. The engine rejects SDXL, downscaling, and postprocessing combinations
-that were not evaluated. Tiling is also rejected because the combined
+the VAE already loaded for the selected profile; no second generative profile runs.
+The engine rejects SDXL, including `auto` when Google provenance selects it,
+downscaling, and postprocessing combinations that were not evaluated. Tiling is
+also rejected because the combined
 tiled-restoration path has no provider-oracle calibration. `InvisibleOptions` exposes
 the same field for `remove_all`; after a visible-stage edit, the manifest must be built
 against the staged pixels rather than the pristine source.

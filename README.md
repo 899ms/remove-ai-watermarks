@@ -272,8 +272,8 @@ ControlNet, followed by SAM-masked Z-Image repair of any detected face. The
 alternative, `sdxl-zimage`, swaps the global stage for SDXL and keeps the same face
 stage. A third profile, `chroma-zimage`, uses the Apache-2.0 Chroma1 global pass
 with its own flat vendor floors; see `docs/chroma1-engine-research.md` for the
-calibration. `--pipeline auto` picks chroma-zimage for Microsoft
-provenance and qwen-zimage otherwise. All are CUDA only.
+calibration. `--pipeline auto` picks sdxl-zimage for Google, chroma-zimage for
+Microsoft, and qwen-zimage otherwise. All are CUDA only.
 
 ```bash
 uv tool install --force "remove-ai-watermarks[qwen-zimage]"

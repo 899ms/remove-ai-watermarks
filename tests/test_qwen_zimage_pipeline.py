@@ -1015,7 +1015,7 @@ def test_chroma_zimage_strength_uses_measured_flat_floors():
     assert resolve_strength(None, "microsoft", "chroma-zimage") == pytest.approx(CHROMA_ZIMAGE_MICROSOFT_STRENGTH)
     assert pytest.approx(0.125) == CHROMA_ZIMAGE_MICROSOFT_STRENGTH
     assert resolve_strength(None, "google", "chroma-zimage") == pytest.approx(CHROMA_ZIMAGE_GOOGLE_STRENGTH)
-    assert pytest.approx(0.40) == CHROMA_ZIMAGE_GOOGLE_STRENGTH
+    assert pytest.approx(0.50) == CHROMA_ZIMAGE_GOOGLE_STRENGTH
     assert resolve_strength(None, "meta", "chroma-zimage") == pytest.approx(CHROMA_ZIMAGE_META_STRENGTH)
     assert pytest.approx(0.17) == CHROMA_ZIMAGE_META_STRENGTH
     # Unknown follows the strictest measured cohort, as with the other profiles.
@@ -1281,43 +1281,32 @@ def test_chroma_vae_roundtrip_uses_deterministic_mode_and_restores_native_size(m
     assert result.size == (35, 19)
 
 
-def test_chroma_google_face_content_gets_the_lower_adaptive_floor():
-    """Face content on Google SynthID clears at 0.125, not 0.40.
+def test_chroma_google_uses_one_content_agnostic_floor():
+    """Face detection alone cannot safely select a lower Google floor.
 
-    The four-fixture calibration showed a clean face-count split: both zero-face
-    text cards need 0.25, both face fixtures clear at 0.12. The adaptive arm
-    saves face identity (0.611 vs 0.279 cosine) and 6.4 dB PSNR on face content.
+    Fresh face-plus-text carriers required more denoise than the old face-only
+    fixtures, and the runtime has no measured text classifier. Keep every Google
+    carrier on the replicated global floor until a richer content gate exists.
     """
     from remove_ai_watermarks._internal.watermark_profiles import (
-        CHROMA_ZIMAGE_GOOGLE_FACE_STRENGTH,
         CHROMA_ZIMAGE_GOOGLE_STRENGTH,
         resolve_strength,
     )
 
-    assert pytest.approx(0.125) == CHROMA_ZIMAGE_GOOGLE_FACE_STRENGTH
-    # Face content gets the lower adaptive floor.
-    assert resolve_strength(None, "google", "chroma-zimage", face_count=17) == pytest.approx(0.125)
-    assert resolve_strength(None, "google", "chroma-zimage", face_count=1) == pytest.approx(0.125)
-    # Zero-face content gets the flat floor (text/graphic cohort).
-    assert resolve_strength(None, "google", "chroma-zimage", face_count=0) == pytest.approx(0.40)
-    assert pytest.approx(0.40) == CHROMA_ZIMAGE_GOOGLE_STRENGTH
-    # No face_count hint: conservative (flat floor).
-    assert resolve_strength(None, "google", "chroma-zimage") == pytest.approx(0.40)
-    # Other vendors ignore face_count: the split is Google-SynthID-specific.
-    assert resolve_strength(None, "openai", "chroma-zimage", face_count=5) == pytest.approx(0.20)
-    assert resolve_strength(None, "meta", "chroma-zimage", face_count=5) == pytest.approx(0.17)
-    # An explicit strength still wins over the adaptive arm.
-    assert resolve_strength(0.20, "google", "chroma-zimage", face_count=17) == pytest.approx(0.20)
-    # Other profiles are untouched by the face_count parameter.
-    assert resolve_strength(None, "google", "qwen-zimage", size=(2000, 1850), face_count=17) == pytest.approx(0.27)
+    assert pytest.approx(0.50) == CHROMA_ZIMAGE_GOOGLE_STRENGTH
+    assert resolve_strength(None, "google", "chroma-zimage") == pytest.approx(0.50)
+    assert resolve_strength(None, "openai", "chroma-zimage") == pytest.approx(0.20)
+    assert resolve_strength(None, "meta", "chroma-zimage") == pytest.approx(0.17)
+    # An explicit strength still wins over the default.
+    assert resolve_strength(0.20, "google", "chroma-zimage") == pytest.approx(0.20)
 
 
 def test_auto_profile_routes_to_the_measured_engine_per_vendor():
-    """--pipeline auto picks the engine the four-cohort calibration supports:
-    chroma-zimage for Microsoft, qwen-zimage for OpenAI/Google/Meta/unknown."""
+    """--pipeline auto picks the best quality-qualified measured engine."""
     from remove_ai_watermarks._internal.watermark_profiles import (
         CHROMA_ZIMAGE_PROFILE,
         QWEN_ZIMAGE_PROFILE,
+        SDXL_ZIMAGE_PROFILE,
         normalize_profile,
         resolve_auto_profile,
     )
@@ -1325,10 +1314,19 @@ def test_auto_profile_routes_to_the_measured_engine_per_vendor():
     assert normalize_profile("auto") == "auto"
     assert resolve_auto_profile("openai") == QWEN_ZIMAGE_PROFILE
     assert resolve_auto_profile("microsoft") == CHROMA_ZIMAGE_PROFILE
-    assert resolve_auto_profile("google") == QWEN_ZIMAGE_PROFILE
+    assert resolve_auto_profile("google") == SDXL_ZIMAGE_PROFILE
     assert resolve_auto_profile("meta") == QWEN_ZIMAGE_PROFILE
     assert resolve_auto_profile(None) == QWEN_ZIMAGE_PROFILE
     assert resolve_auto_profile("unknown") == QWEN_ZIMAGE_PROFILE
+
+
+def test_auto_strength_uses_the_effective_vendor_profile():
+    """Displayed and executed auto strengths must use the same engine policy."""
+    from remove_ai_watermarks._internal.watermark_profiles import resolve_strength
+
+    assert resolve_strength(None, "google", "auto", size=(64, 48)) == pytest.approx(0.50)
+    assert resolve_strength(None, "microsoft", "auto", size=(64, 48)) == pytest.approx(0.125)
+    assert resolve_strength(None, "openai", "auto", size=(64, 48)) == pytest.approx(0.07675)
 
 
 def test_auto_profile_strength_uses_the_resolved_engine_floors(tmp_path, monkeypatch):
@@ -1340,7 +1338,8 @@ def test_auto_profile_strength_uses_the_resolved_engine_floors(tmp_path, monkeyp
     Image.new("RGB", (64, 48)).save(source)
 
     remover = WatermarkRemover(device="cuda", pipeline="auto")
-    assert remover.model_profile == "auto"
+    assert remover.configured_profile == "auto"
+    assert remover.model_profile == "qwen-zimage"
 
     runtime = MagicMock()
     runtime.run.return_value = Image.new("RGB", (64, 48), (50, 60, 70))
@@ -1351,6 +1350,27 @@ def test_auto_profile_strength_uses_the_resolved_engine_floors(tmp_path, monkeyp
     assert remover.model_profile == "qwen-zimage"
     _, kwargs = runtime.run.call_args
     assert kwargs["strength"] == pytest.approx(0.07675)
+
+
+def test_auto_google_switches_to_the_sdxl_floor_and_dtype(tmp_path, monkeypatch):
+    """Auto must switch both policy and weights dtype when Google selects SDXL."""
+    from remove_ai_watermarks._internal import watermark_remover
+    from remove_ai_watermarks._internal.watermark_remover import WatermarkRemover
+
+    _mock_watermark_runtime_deps(monkeypatch)
+    source = tmp_path / "source.png"
+    Image.new("RGB", (64, 48)).save(source)
+
+    remover = WatermarkRemover(device="cuda", pipeline="auto")
+    runtime = MagicMock()
+    runtime.run.return_value = Image.new("RGB", (64, 48), (50, 60, 70))
+    monkeypatch.setattr(remover, "_load_qwen_zimage_pipeline", lambda: runtime)
+
+    remover.remove_watermark(source, vendor="google")
+
+    assert remover.model_profile == "sdxl-zimage"
+    assert remover.torch_dtype == watermark_remover.torch.float16
+    assert runtime.run.call_args.kwargs["strength"] == pytest.approx(0.50)
 
 
 def test_auto_profile_text_manifest_uses_the_measured_qwen_engine_once(tmp_path, monkeypatch):
@@ -1373,3 +1393,30 @@ def test_auto_profile_text_manifest_uses_the_measured_qwen_engine_once(tmp_path,
     assert remover.model_profile == "qwen-zimage"
     assert runtime.run.call_count == 1
     assert runtime.run.call_args.kwargs["text_manifest"] is manifest
+
+
+def test_auto_profile_is_resolved_fresh_for_each_image(tmp_path, monkeypatch):
+    """A Google image must not pin the next OpenAI image to SDXL."""
+    from remove_ai_watermarks._internal.watermark_remover import WatermarkRemover
+
+    _mock_watermark_runtime_deps(monkeypatch)
+    source = tmp_path / "source.png"
+    Image.new("RGB", (64, 48)).save(source)
+    remover = WatermarkRemover(device="cuda", pipeline="auto")
+    runtimes = []
+
+    def load_runtime():
+        runtime = MagicMock()
+        runtime.run.return_value = Image.new("RGB", (64, 48))
+        runtimes.append(runtime)
+        return runtime
+
+    monkeypatch.setattr(remover, "_load_qwen_zimage_pipeline", load_runtime)
+
+    remover.remove_watermark(source, tmp_path / "google.png", vendor="google")
+    assert remover.model_profile == "sdxl-zimage"
+    assert runtimes[-1].run.call_args.kwargs["strength"] == pytest.approx(0.50)
+
+    remover.remove_watermark(source, tmp_path / "openai.png", vendor="openai")
+    assert remover.model_profile == "qwen-zimage"
+    assert runtimes[-1].run.call_args.kwargs["strength"] == pytest.approx(0.07675)

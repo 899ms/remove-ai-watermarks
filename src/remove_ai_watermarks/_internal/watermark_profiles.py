@@ -55,9 +55,8 @@ PROFILE_ADAPTIVE_POLISH = {
     QWEN_ZIMAGE_PROFILE: False,
     SDXL_ZIMAGE_PROFILE: True,
     CHROMA_ZIMAGE_PROFILE: False,
-    # Auto resolves to qwen-zimage or chroma-zimage, both of which keep the
-    # input's detail level. If it ever resolves to an engine that needs polish,
-    # the resolved profile's own default applies.
+    # This fallback applies only before a vendor is known. The engine resolves
+    # auto first so Google-to-SDXL receives SDXL's enabled default.
     AUTO_PROFILE: False,
 }
 
@@ -80,26 +79,26 @@ SDXL_LIGHTNING_PATTERN = "sdxl_lightning_4step_lora.safetensors"
 PROFILE_SEED = 0
 
 # sdxl-zimage runs the qwen-zimage recipe on an SDXL global stage, and strength is
-# architecture-bound: at Qwen's 0.154 an SDXL global pass leaves SynthID on a native
-# 2816x1536 Gemini original, while 0.20, 0.25 and 0.30 all read clean in the Gemini
-# app. 0.25 keeps a rung of margin over that boundary, which the historical SDXL
-# certification argues for -- it recorded 0.20 as DETECTED against Gemini on an
-# older SDXL pipeline. OpenAI is the easier oracle: the profile already cleared
-# openai.com/verify at 0.1102, so 0.15 sits above what was verified rather than on
-# it. Unknown follows Gemini, the stricter of the two.
+# architecture-bound. The source-fresh 2026-09-15 calibration found Google CJK
+# detectable through 0.45 and clean at 0.50. The 0.50 candidate was then replicated
+# clean on independent busy, flat-text, and face-plus-text carriers. OpenAI is
+# the easier oracle: the profile cleared openai.com/verify at 0.1102, so 0.15
+# sits above what was verified rather than on it. Unknown follows Google, the
+# stricter measured cohort.
 #
 # Unlike qwen-zimage this is a flat vendor policy rather than a resolution curve,
 # because flat values are what was measured. Every verdict above comes from a fixed
 # strength at one size; no size dependence has been established for this stage.
 SDXL_ZIMAGE_OPENAI_STRENGTH = 0.15
-SDXL_ZIMAGE_GEMINI_STRENGTH = 0.25
+SDXL_ZIMAGE_GEMINI_STRENGTH = 0.50
 SDXL_ZIMAGE_UNKNOWN_STRENGTH = SDXL_ZIMAGE_GEMINI_STRENGTH
 
 # qwen-zimage keeps its resolution curve for unknown content, but measured vendor
-# cohorts bypass it. Google remained detectable through 0.24375; 0.25 cleared all
-# three valid sources and 0.27 was separately repeated clean across them and three
-# accounts, so the independently checked 0.27 candidate is the operating floor.
-QWEN_ZIMAGE_GOOGLE_STRENGTH = 0.27
+# cohorts bypass it. A source-fresh 2026-09-15 sweep found Latin scenes and faces
+# clean at 0.15 but CJK and Cyrillic text requiring 0.35. The 0.35 candidate was
+# then independently replicated clean on busy, flat-text, and face-plus-text CJK
+# carriers, so 0.35 is the content-agnostic operating floor.
+QWEN_ZIMAGE_GOOGLE_STRENGTH = 0.35
 
 # The two OpenAI sources first cleared at 0.06225 and 0.0695. Add one full observed
 # cross-source spread (0.00725) to the worst clean boundary: 0.0695 + 0.00725.
@@ -122,7 +121,7 @@ QWEN_ZIMAGE_MICROSOFT_STRENGTH = 0.15
 # mug <= 0.03, text <= 0.015. Worst clean boundary plus one full observed
 # cross-source spread: 0.06 + (0.0525 - 0.015) = 0.0975, rounded up to 0.1.
 # sdxl-zimage has no measured Meta floor; its vendor map stays without a meta
-# entry so an explicit --vendor meta there falls to the unknown 0.25, which is
+# entry so an explicit --vendor meta there falls to the unknown 0.50, which is
 # above this floor and therefore conservative.
 QWEN_ZIMAGE_META_STRENGTH = 0.1
 
@@ -165,11 +164,12 @@ _SDXL_ZIMAGE_STRENGTH_BY_VENDOR: dict[str, float] = {
 # - Microsoft InvisMark: paint-1 (0.06, 0.08], paint-2 <= 0.04, paint-3
 #   (0.06, 0.08] -> 0.08 + (0.08 - 0.04) = 0.12, rounded up to the measured
 #   rung 0.125, oracle-verified clean on both worst sources. BELOW qwen's 0.15.
-# - Google: 633uuy (0.20, 0.25], akdbei (0.20, 0.25], y48j3c (0.08, 0.12],
-#   3mc4t9 (0.08, 0.12] -> 0.25 + (0.25 - 0.12) = 0.38, rounded up to 0.40,
-#   oracle-verified clean on the worst fixture. ABOVE qwen's 0.27; at 0.40 the
-#   regeneration destroys dense text and collapses face identity, which is why
-#   the matched-strength addendum recommends the adaptive-strength follow-up.
+# - Google: the source-fresh 2026-09-15 sweep superseded the four-fixture 0.40
+#   derivation: CJK remained detected at 0.40 and cleared at 0.50. The 0.50
+#   candidate was independently replicated clean on busy, flat-text, and
+#   face-plus-text CJK carriers. Face detection cannot select the older 0.125
+#   arm safely because fresh face-plus-text carriers require more denoise and the
+#   runtime has no measured text-content gate.
 # - Meta Content Seal: lighthouse (0.08, 0.10], fox (0.06, 0.08], night_city
 #   (0.045, 0.06], studio_mug (0.03, 0.045], text_poster <= 0.03 ->
 #   0.10 + (0.10 - 0.03) = 0.17. ABOVE qwen's 0.1; the floors exist because
@@ -177,22 +177,9 @@ _SDXL_ZIMAGE_STRENGTH_BY_VENDOR: dict[str, float] = {
 #   worse per unit strength.
 CHROMA_ZIMAGE_OPENAI_STRENGTH = 0.20
 CHROMA_ZIMAGE_MICROSOFT_STRENGTH = 0.125
-CHROMA_ZIMAGE_GOOGLE_STRENGTH = 0.40
+CHROMA_ZIMAGE_GOOGLE_STRENGTH = 0.50
 CHROMA_ZIMAGE_META_STRENGTH = 0.17
 CHROMA_ZIMAGE_UNKNOWN_STRENGTH = CHROMA_ZIMAGE_GOOGLE_STRENGTH
-
-# Content-adaptive Google floor: the four-fixture calibration showed a clean
-# face-count split. Both zero-face fixtures (dense-text cards 633uuy and akdbei)
-# need 0.25 first-clean; both face fixtures (y48j3c with 17 detected faces and
-# 3mc4t9 with 7) clear at 0.12. The flat 0.40 floor is the zero-face policy
-# (worst 0.25 + spread 0.13 = 0.38, rounded to 0.40). Face content can use the
-# measured 0.125 rung instead: both face fixtures first-cleaned at 0.12, and
-# with identical boundaries the cross-source spread is zero, so 0.125 (the next
-# measured rung above 0.12) is the operating point. This split is
-# Google-SynthID-specific: OpenAI's face fixture was HARDER than its text
-# fixture (0.075 vs 0.06), so no other cohort gets an adaptive arm.
-# Oracle-verified 2026-08-30; see docs/chroma1-engine-research.md.
-CHROMA_ZIMAGE_GOOGLE_FACE_STRENGTH = 0.125
 
 _CHROMA_ZIMAGE_STRENGTH_BY_VENDOR: dict[str, float] = {
     "openai": CHROMA_ZIMAGE_OPENAI_STRENGTH,
@@ -209,10 +196,11 @@ _ALIASES = {
 
 # The deterministic per-cohort selection policy: which profile wins on which vendor, from the
 # 2026-08-29/30 four-cohort calibration (docs/chroma1-engine-research.md).
-# chroma-zimage has the lower measured Microsoft floor. qwen-zimage wins on
-# OpenAI, Google, and Meta. Unknown stays on qwen (the shipped default,
-# conservative).
+# chroma-zimage has the lower measured Microsoft floor. SDXL wins Google on
+# paired quality at the independently clean operating points. Qwen wins OpenAI
+# and Meta; unknown stays on Qwen, the shipped conservative fallback.
 _ENGINE_BY_VENDOR: dict[str, str] = {
+    "google": SDXL_ZIMAGE_PROFILE,
     "microsoft": CHROMA_ZIMAGE_PROFILE,
 }
 
@@ -226,6 +214,14 @@ def normalize_profile(profile: str) -> str:
     """Normalize spelling and resolve the underscore spellings."""
     value = profile.strip().casefold()
     return _ALIASES.get(value, value)
+
+
+def resolve_effective_profile(profile: str, vendor: str | None) -> str:
+    """Resolve a configured profile to the concrete engine for one image."""
+    normalized = normalize_profile(profile)
+    if normalized == AUTO_PROFILE:
+        return resolve_auto_profile(vendor)
+    return normalized
 
 
 def resolve_seed(seed: int | None) -> int:
@@ -247,9 +243,7 @@ def global_offload_supported(pipeline: str) -> bool:
     the only unresolved ``auto`` load, and that path deliberately uses qwen-zimage
     as its fallback, so it has the same offload support as qwen-zimage.
     """
-    profile = normalize_profile(pipeline)
-    if profile == AUTO_PROFILE:
-        profile = resolve_auto_profile(None)
+    profile = resolve_effective_profile(pipeline, None)
     return profile in GLOBAL_OFFLOAD_PROFILES
 
 
@@ -273,7 +267,6 @@ def resolve_strength(
     pipeline: str | None = None,
     *,
     size: tuple[int, int] | None = None,
-    face_count: int | None = None,
 ) -> float:
     """Resolve a user override or the calibrated policy for a profile and vendor.
 
@@ -288,13 +281,11 @@ def resolve_strength(
     """
     if strength is not None:
         return strength
-    normalized = normalize_profile(pipeline or "")
+    normalized = resolve_effective_profile(pipeline or "", vendor)
     if normalized == SDXL_ZIMAGE_PROFILE:
         return _SDXL_ZIMAGE_STRENGTH_BY_VENDOR.get((vendor or "").casefold(), SDXL_ZIMAGE_UNKNOWN_STRENGTH)
     if normalized == CHROMA_ZIMAGE_PROFILE:
         vendor_key = (vendor or "").casefold()
-        if vendor_key == "google" and face_count is not None and face_count > 0:
-            return CHROMA_ZIMAGE_GOOGLE_FACE_STRENGTH
         return _CHROMA_ZIMAGE_STRENGTH_BY_VENDOR.get(vendor_key, CHROMA_ZIMAGE_UNKNOWN_STRENGTH)
     if size is None:
         raise ValueError("qwen-zimage resolves strength from image area, so size is required")

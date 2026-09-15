@@ -32,8 +32,8 @@ def _engine(run=None):
     engine = object.__new__(invisible_engine.InvisibleEngine)
     engine._progress_callback = None
     remover = object.__new__(WatermarkRemover)
+    remover.configured_profile = "qwen-zimage"
     remover.model_profile = "qwen-zimage"
-    remover._auto = False
     remover._qwen_zimage_pipeline = SimpleNamespace(run=run or (lambda source, **kwargs: source))
     engine._remover = remover
     return engine

@@ -55,7 +55,7 @@ class TestVerifiedTextMode:
     def _engine(profile: str = "qwen-zimage") -> InvisibleEngine:
         engine = object.__new__(InvisibleEngine)
         engine._progress_callback = None
-        engine._remover = SimpleNamespace(model_profile=profile)
+        engine._remover = SimpleNamespace(configured_profile=profile, model_profile=profile)
         return engine
 
     def test_rejects_incompatible_pipeline_options(self, tmp_path):
@@ -85,6 +85,19 @@ class TestVerifiedTextMode:
             self._engine().remove_watermark(
                 tmp_path / "unused.png",
                 fidelity_anchor=True,
+            )
+
+    def test_auto_rejects_google_text_manifest_before_model_loading(self, tmp_path):
+        import pytest
+
+        manifest = tmp_path / "manifest.json"
+        manifest.write_text("{}", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="not supported by the sdxl-zimage profile"):
+            self._engine("auto").remove_watermark(
+                tmp_path / "unused.png",
+                text_manifest=manifest,
+                vendor="google",
             )
 
     def test_loads_and_forwards_verified_manifest(self, tmp_path, monkeypatch):
@@ -149,7 +162,11 @@ class TestNativeOutputSize:
             Image.open(image_path).crop((0, 0, 24, 16)).save(out)
             return out
 
-        engine._remover = SimpleNamespace(remove_watermark=_remove_watermark, model_profile="qwen-zimage")
+        engine._remover = SimpleNamespace(
+            remove_watermark=_remove_watermark,
+            configured_profile="qwen-zimage",
+            model_profile="qwen-zimage",
+        )
         engine._progress_callback = None
         src = tmp_path / "src.png"
         out = tmp_path / "out.png"
@@ -262,10 +279,10 @@ class TestEngineResolvesThePolishPerProfile:
 
         engine = object.__new__(InvisibleEngine)
         engine._progress_callback = None
-        engine._remover = MagicMock(model_profile=profile)
+        engine._remover = MagicMock(configured_profile=profile, model_profile=profile)
         return engine
 
-    def _polish_used(self, profile: str, requested, tmp_path, monkeypatch) -> bool:
+    def _polish_used(self, profile: str, requested, tmp_path, monkeypatch, *, vendor: str | None = None) -> bool:
         seen: list[bool] = []
         monkeypatch.setattr(
             "remove_ai_watermarks.humanizer.adaptive_polish",
@@ -278,12 +295,20 @@ class TestEngineResolvesThePolishPerProfile:
             Image.open(kw["image_path"]).save(kw["output_path"]),
             kw["output_path"],
         )[1]
-        engine.remove_watermark(src, tmp_path / f"out_{profile}_{requested}.png", adaptive_polish=requested)
+        engine.remove_watermark(
+            src,
+            tmp_path / f"out_{profile}_{requested}.png",
+            adaptive_polish=requested,
+            vendor=vendor,
+        )
         return bool(seen)
 
     def test_unset_follows_the_profile_not_the_signature_default(self, tmp_path, monkeypatch):
         assert self._polish_used("qwen-zimage", None, tmp_path, monkeypatch) is False
         assert self._polish_used("sdxl-zimage", None, tmp_path, monkeypatch) is True
+
+    def test_auto_google_uses_the_resolved_sdxl_default(self, tmp_path, monkeypatch):
+        assert self._polish_used("auto", None, tmp_path, monkeypatch, vendor="google") is True
 
     def test_an_explicit_value_still_wins_on_both_profiles(self, tmp_path, monkeypatch):
         assert self._polish_used("qwen-zimage", True, tmp_path, monkeypatch) is True

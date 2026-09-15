@@ -490,7 +490,7 @@ The same option exists on `all` and `batch`, and as
 | `qwen-zimage` | Default. Qwen-Image-2512 global pass plus a SAM-masked Z-Image face stage |
 | `sdxl-zimage` | The same recipe and face stage on an SDXL global pass, at a higher denoise |
 | `chroma-zimage` | The same face stage on an Apache-2.0 Chroma1 global pass; explicit OpenAI use needs a higher floor than qwen-zimage |
-| `auto` | Pick the engine from provenance: chroma-zimage for Microsoft, qwen-zimage for OpenAI, Google, unknown, and an explicitly selected Meta cohort |
+| `auto` | Pick the engine from provenance: sdxl-zimage for Google, chroma-zimage for Microsoft, qwen-zimage for OpenAI, unknown, and an explicitly selected Meta cohort |
 
 **All four are CUDA-only.** There is no CPU or MPS profile for invisible-watermark
 removal. The former `controlnet`, `sdxl`, `qwen` and `default` profiles were removed
@@ -526,8 +526,12 @@ Install the combined extra and run only with an operator-verified manifest:
 ```bash
 uv tool install --force "remove-ai-watermarks[text-restoration]"
 remove-ai-watermarks invisible image.png -o clean.png \
-  --pipeline auto --text-manifest verified-lines.json --force
+  --pipeline qwen-zimage --text-manifest verified-lines.json --force
 ```
+
+Use an explicit `qwen-zimage` or `chroma-zimage` profile with this option. For
+Google provenance, `auto` resolves to SDXL, whose VAE path has not been calibrated
+for verified-text restoration and is therefore rejected.
 
 ``verified: true`` may also be set by an automated operator that attests
 machine-verified geometry: stability-gated detector boxes inside sane caps. Such

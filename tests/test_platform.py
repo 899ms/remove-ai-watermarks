@@ -240,6 +240,7 @@ class TestResolveStrength:
         )
         assert resolve_strength(None, None, "qwen-zimage", size=(600, 500)) == pytest.approx(0.084)
         assert resolve_strength(None, "google", "qwen-zimage", size=(600, 500)) == QWEN_ZIMAGE_GOOGLE_STRENGTH
+        assert QWEN_ZIMAGE_GOOGLE_STRENGTH == 0.35
         # The floor holds at every size, not only above the curve's top rung.
         assert resolve_strength(None, "google", "qwen-zimage", size=(2000, 1850)) == QWEN_ZIMAGE_GOOGLE_STRENGTH
 
@@ -278,7 +279,7 @@ class TestResolveStrength:
     def test_sdxl_zimage_uses_its_flat_vendor_ladder(self):
 
         assert SDXL_ZIMAGE_OPENAI_STRENGTH == 0.15
-        assert SDXL_ZIMAGE_GEMINI_STRENGTH == 0.25
+        assert SDXL_ZIMAGE_GEMINI_STRENGTH == 0.50
         assert SDXL_ZIMAGE_UNKNOWN_STRENGTH == SDXL_ZIMAGE_GEMINI_STRENGTH
         assert resolve_strength(None, "openai", "sdxl-zimage") == SDXL_ZIMAGE_OPENAI_STRENGTH
         assert resolve_strength(None, "google", "sdxl-zimage") == SDXL_ZIMAGE_GEMINI_STRENGTH
