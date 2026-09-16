@@ -134,10 +134,10 @@ def _apply_attack(image: Image.Image, attack: str) -> Image.Image:
 def feature_from_path(path: Path, geometry: SpectralGeometry, attack: str) -> FloatArray:
     """Decode one path, apply ATTACK, and return its phase-free feature."""
     with Image.open(path) as source:
-        return _feature_from_image(source.convert("RGB"), geometry, attack)
+        return feature_from_image(source.convert("RGB"), geometry, attack)
 
 
-def _feature_from_image(image: Image.Image, geometry: SpectralGeometry, attack: str) -> FloatArray:
+def feature_from_image(image: Image.Image, geometry: SpectralGeometry, attack: str) -> FloatArray:
     """Extract one attacked feature from an already decoded RGB image."""
     attacked = _apply_attack(image, attack)
     canonical = attacked.resize((geometry.size, geometry.size), Image.Resampling.LANCZOS)
@@ -253,7 +253,7 @@ def _extract_all_attacks(
         with Image.open(path) as source:
             image = source.convert("RGB")
         for attack in attacks:
-            rows[attack].append(_feature_from_image(image, geometry, attack))
+            rows[attack].append(feature_from_image(image, geometry, attack))
     return {attack: np.asarray(features) for attack, features in rows.items()}
 
 

@@ -62,6 +62,56 @@ support treating augmentation and architecture shift as first-class tests,
 rather than reading an untransformed source-classification score as watermark
 evidence.
 
+### Abstaining fused source classifier, 2026-09-15
+
+The follow-up experiment combined the existing 124-d forensic descriptor with
+the 16x16 phase-free spectral grid in a class-balanced ridge head. Its three
+outputs are `openai`, `google`, and `unknown`; a provider result is emitted only
+when it beats both the other provider and `unknown` by a margin selected on a
+separate calibration split. The public implementation is
+[`scripts/source_pipeline_classifier.py`](../scripts/source_pipeline_classifier.py).
+It includes training, strict pickle-free model loading, and JSON inference, but
+no fitted weights: the experimental training freeze contains inputs that are
+not redistributable. This keeps the code reproducible without publishing a
+derivative artifact whose data provenance does not permit redistribution.
+
+Penalty 100 and margin 0.6392407698660646 were selected using only the training
+and calibration partitions. The 2,669-image locked internal test and Mark's
+900-image public set were not used for feature, penalty, or threshold selection.
+Feature-extraction failures count as `unknown` in every result below.
+
+| Evaluation | Accuracy | OpenAI recall | Google recall | Unknown recall |
+| --- | ---: | ---: | ---: | ---: |
+| Locked internal, 2,669 images | 84.2% | 60.9% | 48.8% | 95.8% |
+| Mark original exports, 900 images | 90.1% | 76.3% | 94.3% | 99.7% |
+| Mark crop 2 px | 89.8% | 76.7% | 94.3% | 98.3% |
+| Mark resize 95% | 59.7% | 81.7% | 0.0% | 97.3% |
+| Mark JPEG quality 75 | 33.3% | 0.0% | 0.0% | 100.0% |
+| Mark blur radius 0.7 | 68.3% | 42.3% | 63.0% | 99.7% |
+
+The untouched-export result is useful source-attribution evidence, but the
+transforms decide the claim. Resizing eliminated the Google branch, JPEG made
+the classifier abstain on every row, and blur materially reduced both provider
+recalls. The locked unknown false-attribution rate was 4.2%, versus 0.9% on the
+calibration split. This is therefore an inspectable research baseline, not a
+runtime detector or a product watermark verdict.
+
+Training requires hash-disjoint `train` and `calibration` directories, each
+with `openai`, `google`, and `unknown` subdirectories:
+
+```bash
+uv run python scripts/source_pipeline_classifier.py train \
+  /path/to/train /path/to/calibration --model-out .local-eval/source-pipeline.npz
+
+uv run python scripts/source_pipeline_classifier.py predict \
+  .local-eval/source-pipeline.npz image.png
+```
+
+A stronger public release needs a publication-cleared multi-era training set
+and a causal marked/unmarked contrast. Mark's same-prompt triples remain an
+external source/export test, not evidence that the fitted features read the
+SynthID payload.
+
 Krawetz's Gemini-chat TPR critique is a verifier-quality claim, not a
 feature we can ship. [Lead Stories, 2026-07](https://leadstories.com/analysis/2026/07/google-gemini-synthid-detector-confuses-results-within-same-chat.html)
 documented Gemini repeating the first file's SynthID verdict inside a
