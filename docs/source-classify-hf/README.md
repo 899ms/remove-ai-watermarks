@@ -28,7 +28,7 @@ provider label does not prove that SynthID is present.
 - Output: `openai`, `google`, or abstain as `unknown` using independent
   provider margins.
 - Artifact: `source-pipeline-mlp.npz`
-- SHA-256: `0df4c644d02616265d083dbd3204e4dc617f7133b94af0eb0dc59d5362189290`
+- SHA-256: `6430b0738869ff07b6845b7c6149c2a83bc3f3785878082886c241c6f7ca0c4a`
 
 The artifact contains only learned parameters, normalization constants,
 labels, and thresholds. It does not contain training images, paths, image

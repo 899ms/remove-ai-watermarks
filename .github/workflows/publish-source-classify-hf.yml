@@ -12,7 +12,7 @@ on:
       weights_tag:
         description: "GitHub Release tag holding source-pipeline-mlp.npz"
         required: true
-        default: source-classify-freeze-2026-09-16
+        default: source-classify-freeze-2026-09-16-r2
 
 jobs:
   publish:
