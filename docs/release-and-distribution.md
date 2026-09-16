@@ -100,7 +100,9 @@ and aggregate metrics under `docs/source-classify-hf/`. The private corpus,
 catalog, paths, hashes, embeddings, and feature caches are outside this flow.
 
 The workflow is manual and requires the model-freeze release tag plus an
-explicit `publish` confirmation.
+explicit `publish` confirmation. Keep model-freeze GitHub releases marked as
+pre-releases so a model artifact cannot replace the latest package release in
+GitHub's release UI.
 
 If a distribution job fails because a repository or Hugging Face credential is
 invalid, rotate the corresponding GitHub secret and rerun the failed job. A

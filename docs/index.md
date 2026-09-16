@@ -13,6 +13,7 @@ to run the tool. Use the maintainer references only when changing the code.
 | [Supported signals](supported-signals.md) | You need to know which visible marks, metadata formats, and invisible signals are covered. |
 | [Known limitations](known-limitations.md) | You need the quality, device, format, or verification boundaries. |
 | [Photo pixel classification](photo-classify.md) | You want `classify` / `classify_pixels`: AI versus camera, optional provider. |
+| [Source-pipeline classification](source-classify.md) | You want an abstaining OpenAI/Google/unknown export-pipeline signal after metadata removal. |
 | [Photo classifier training](photo-classify-training.md) | You need the retrain pack, public sources, and what is not published. |
 | [Scope, safety, and legal notes](legal-and-safety.md) | You need the intended use and legal context. |
 

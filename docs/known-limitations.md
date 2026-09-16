@@ -20,6 +20,14 @@ The command is never started by `identify`. A no-signal provenance result stays
 unknown. This is not a clean verdict and it does not run cleanup. Full guide:
 [photo pixel classification](photo-classify.md).
 
+`classify_source` is a different, lightweight OpenAI/Google/unknown
+source-export classifier. It is useful only while the pixels still resemble an
+original export. A 95% resize reduced measured Google recall to 1%, and a JPEG
+quality-75 round trip made every public evaluation row abstain. Its provider
+label is not evidence that SynthID is present, and `unknown` is not evidence
+that SynthID is absent. It is also never started by `identify`. Full guide:
+[source-pipeline classification](source-classify.md).
+
 ## Visible removal
 
 ### Fill quality depends on the background

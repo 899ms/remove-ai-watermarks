@@ -3449,7 +3449,7 @@ wheels = [
 
 [[package]]
 name = "remove-ai-watermarks"
-version = "0.40.6"
+version = "0.41.0"
 source = { editable = "." }
 dependencies = [
     { name = "c2pa-python" },
@@ -3584,6 +3584,13 @@ qwen-zimage = [
     { name = "torchvision" },
     { name = "transformers" },
 ]
+source-classify = [
+    { name = "huggingface-hub" },
+    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
+    { name = "numpy", version = "2.3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
+    { name = "opencv-python-headless", version = "4.11.0.86", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
+    { name = "opencv-python-headless", version = "4.14.0.94", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
+]
 text-draft = [
     { name = "huggingface-hub" },
     { name = "paddleocr" },
@@ -3637,6 +3644,7 @@ requires-dist = [
     { name = "huggingface-hub", marker = "extra == 'dev'", specifier = ">=0.20.0" },
     { name = "huggingface-hub", marker = "extra == 'lama'", specifier = ">=0.20.0" },
     { name = "huggingface-hub", marker = "extra == 'migan'", specifier = ">=0.20.0" },
+    { name = "huggingface-hub", marker = "extra == 'source-classify'", specifier = ">=0.20.0" },
     { name = "huggingface-hub", marker = "extra == 'text-draft'", specifier = ">=0.20.0" },
     { name = "invisible-watermark", marker = "extra == 'dev'", specifier = ">=0.2.0" },
     { name = "numpy", marker = "python_full_version >= '3.13' and extra == 'pixels'", specifier = ">=2" },
@@ -3665,10 +3673,11 @@ requires-dist = [
     { name = "remove-ai-watermarks", extras = ["pixels"], marker = "extra == 'classify'" },
     { name = "remove-ai-watermarks", extras = ["pixels"], marker = "extra == 'detect'" },
     { name = "remove-ai-watermarks", extras = ["pixels"], marker = "extra == 'diffusion'" },
+    { name = "remove-ai-watermarks", extras = ["pixels"], marker = "extra == 'source-classify'" },
     { name = "remove-ai-watermarks", extras = ["pixels"], marker = "extra == 'visible'" },
     { name = "remove-ai-watermarks", extras = ["qwen-zimage", "lama"], marker = "extra == 'text-restoration'" },
     { name = "remove-ai-watermarks", extras = ["video"], marker = "extra == 'dev'" },
-    { name = "remove-ai-watermarks", extras = ["video", "heif", "detect", "trustmark", "text-restoration", "migan", "classify"], marker = "extra == 'all'" },
+    { name = "remove-ai-watermarks", extras = ["video", "heif", "detect", "trustmark", "text-restoration", "migan", "classify", "source-classify"], marker = "extra == 'all'" },
     { name = "remove-ai-watermarks", extras = ["visible"], marker = "extra == 'lama'" },
     { name = "remove-ai-watermarks", extras = ["visible"], marker = "extra == 'migan'" },
     { name = "remove-ai-watermarks", extras = ["visible"], marker = "extra == 'video'" },
@@ -3684,7 +3693,7 @@ requires-dist = [
     { name = "transformers", marker = "extra == 'diffusion'", specifier = ">=5,<6" },
     { name = "trustmark", marker = "python_full_version < '3.13' and extra == 'trustmark'", specifier = ">=0.8.0" },
 ]
-provides-extras = ["pixels", "heif", "visible", "video", "detect", "diffusion", "qwen-zimage", "text-restoration", "text-draft", "trustmark", "classify", "classify-onnx", "lama", "migan", "dev", "all"]
+provides-extras = ["pixels", "heif", "visible", "video", "detect", "diffusion", "qwen-zimage", "text-restoration", "text-draft", "trustmark", "classify", "classify-onnx", "source-classify", "lama", "migan", "dev", "all"]
 
 [[package]]
 name = "requests"

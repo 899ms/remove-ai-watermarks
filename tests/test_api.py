@@ -23,6 +23,10 @@ class TestTopLevelExports:
         assert raiw.remove_visible_detailed is api.remove_visible_detailed
         assert raiw.VisibleRemovalResult is api.VisibleRemovalResult
         assert raiw.visible_provenance is api.visible_provenance
+        from remove_ai_watermarks import source_classify
+
+        assert raiw.classify_source is source_classify.classify_source
+        assert raiw.SourceClassification is source_classify.SourceClassification
 
     def test_unknown_attribute_raises(self):
         with pytest.raises(AttributeError):

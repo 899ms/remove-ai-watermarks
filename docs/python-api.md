@@ -6,11 +6,28 @@ and pipeline modules are intended for maintainers and specialized workflows.
 Dependency groups are identical for the CLI and Python API. The default install
 covers metadata extraction, normalization, verdict logic, and stripping.
 Array/pixel APIs use `pixels`; visible removal uses `visible`; DWT-DCT detection
-uses `detect`; pixel photo classification uses `classify`; invisible image removal uses `qwen-zimage` and an NVIDIA GPU; and
+uses `detect`; pixel photo classification uses `classify`; lightweight source-pipeline classification uses `source-classify`; invisible image removal uses `qwen-zimage` and an NVIDIA GPU; and
 visible video processing uses `video`. The video-pixel SynthID-removal profile is
 a separate VAE path that still runs on CPU and combines `video` and `diffusion`. Add `heif`
 independently when path-based pixel APIs must decode HEIC, HEIF, or AVIF. See
 the complete [feature-extra matrix](installation.md#feature-extras).
+
+## Classify a source/export pipeline
+
+Install `remove-ai-watermarks[source-classify]`, then call the explicit API:
+
+```python
+import remove_ai_watermarks as raiw
+
+result = raiw.classify_source("metadata-stripped.png")
+print(result.label)   # "openai" | "google" | "unknown"
+print(result.reason)  # "classified" | "abstained" | "feature_unavailable"
+```
+
+This signal classifies a complete image-generation and export pipeline. It is
+not a SynthID detector and does not establish watermark presence or absence.
+See [source-pipeline classification](source-classify.md) for the result fields,
+model pin, evaluation boundary, and offline weights override.
 
 ## Remove visible marks
 

@@ -1116,6 +1116,30 @@ both backends explicitly (`tests/test_classify.py` pins the seam). User guide:
 [photo-classify.md](photo-classify.md). Hub card:
 [photo-classify-hf/README.md](photo-classify-hf/README.md).
 
+### Source-pipeline classifier
+
+[`source_classify.py`](../src/remove_ai_watermarks/source_classify.py) is a
+separate, lightweight OpenAI/Google/unknown source-export classifier. It fuses
+the existing 124-dimensional patch descriptor with the 768-dimensional
+phase-free spectrum in
+[`_internal/source_spectral.py`](../src/remove_ai_watermarks/_internal/source_spectral.py),
+then evaluates the frozen 892 -> 128 -> 64 -> 3 GELU MLP in NumPy. Provider
+labels clear independent calibrated margins; every other row is `unknown`.
+The NumPy decision treats values within `1e-5` of the stored margin as the
+inclusive training threshold, absorbing float32 BLAS differences; this matches
+the frozen training-runtime decisions on all 27,811 cached internal and
+external feature rows.
+
+The runtime pins both the immutable Hub revision and the NPZ SHA-256, loads
+with `allow_pickle=False`, and rejects any field, shape, class, activation, or
+non-finite-value drift. `RAIW_SOURCE_CLASSIFY_WEIGHTS` is the offline override.
+The `source-classify` extra adds `pixels` and Hugging Face Hub but no Torch or
+Transformers. `identify` never imports or runs this path. Its output names a
+complete source/export pipeline and is not SynthID detection. Unit contracts
+and the threshold mutation guard live in `tests/test_source_classify.py`;
+evaluation and attack limits live in
+[`synthid-classifiers.md`](synthid-classifiers.md).
+
 The CLIP loader suppresses discarded random parameter initialization with
 Transformers' `no_init_weights` context before applying the complete frozen
 state dict. Normal `CLIPModel(config)` construction initialized 427 million

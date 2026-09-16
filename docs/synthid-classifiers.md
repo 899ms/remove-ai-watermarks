@@ -144,7 +144,8 @@ metadata removal. It neither decodes nor detects SynthID, and its `unknown`
 label does not mean that SynthID is absent. The model card and aggregate
 metrics are tracked under
 [`docs/source-classify-hf/`](source-classify-hf/README.md). Runtime integration
-belongs in the library rather than in the model repository.
+is provided by the explicit `classify_source` library API and never feeds the
+`identify` watermark verdict.
 
 Krawetz's Gemini-chat TPR critique is a verifier-quality claim, not a
 feature we can ship. [Lead Stories, 2026-07](https://leadstories.com/analysis/2026/07/google-gemini-synthid-detector-confuses-results-within-same-chat.html)

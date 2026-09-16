@@ -129,6 +129,10 @@ Do not classify an entire module as untestable because its main path downloads a
 - the photo-classify gate in `test_classify.py`: DEFINITELY is ridge AND MLP,
   POSSIBLY does not emit a provider, and `identify` does not import
   `remove_ai_watermarks.classify`.
+- the source-export classifier in `test_source_classify.py`: the Hub revision
+  and artifact hash are immutable, the pickle-free schema and exact GELU are
+  validated, threshold mutation changes the real decision, and `identify`
+  never consumes the result as watermark evidence.
 - the `InvisibleOptions` defaults, in `test_api.py`. When one signature promises to
   mirror another, compare them field by field rather than pinning the values you happen
   to know about, so the next field added on one side and not the other fails at the

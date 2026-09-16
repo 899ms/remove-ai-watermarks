@@ -4,7 +4,7 @@
 # on it, including the ComfyUI node package. The console script below carries
 # the same weight, since users have it on PATH.
 name = "remove-ai-watermarks"
-version = "0.40.6"
+version = "0.41.0"
 description = "AI watermark remover for visible, invisible, and provenance marks in images and video"
 readme = "README.md"
 requires-python = ">=3.11,<3.15"
@@ -160,6 +160,13 @@ classify-onnx = [
     "remove-ai-watermarks[classify]",
     "onnxruntime>=1.24.0",
 ]
+# Compact OpenAI/Google/unknown source-export classifier. This is intentionally
+# separate from the heavier photo AI-versus-camera classifier and is not a
+# SynthID detector. Weights download on first use.
+source-classify = [
+    "remove-ai-watermarks[pixels]",
+    "huggingface-hub>=0.20.0",
+]
 # Universal region eraser backend -- big-LaMa via onnxruntime (Carve/LaMa-ONNX,
 # Apache-2.0). CPU, no torch. Model (~200 MB) is downloaded on first use and
 # cached by huggingface_hub; it is never bundled in this repo. The default cv2
@@ -205,7 +212,7 @@ dev = [
 ]
 # ``qwen-zimage`` already pulls ``diffusion``; naming both would suggest diffusion is
 # independently sufficient for a removal, which it is not.
-all = ["remove-ai-watermarks[video,heif,detect,trustmark,text-restoration,migan,classify]"]
+all = ["remove-ai-watermarks[video,heif,detect,trustmark,text-restoration,migan,classify,source-classify]"]
 
 [project.scripts]
 remove-ai-watermarks = "remove_ai_watermarks.cli:main"

@@ -30,6 +30,14 @@ import numpy as np
 from numpy.typing import NDArray
 from PIL import Image, ImageFilter
 
+from remove_ai_watermarks._internal import source_spectral as _spectral
+
+SpectralGeometry = _spectral.SpectralGeometry
+make_geometry = _spectral.make_geometry
+phase_free_log_spectrum = _spectral.phase_free_log_spectrum
+spectral_feature = _spectral.spectral_feature
+_source_feature_from_image = _spectral.feature_from_image
+
 log = logging.getLogger(__name__)
 
 IMAGE_SUFFIXES = frozenset({".jpg", ".jpeg", ".png", ".webp"})
@@ -41,17 +49,6 @@ BoolArray = NDArray[np.bool_]
 
 
 @dataclass(frozen=True)
-class SpectralGeometry:
-    """Precomputed coordinates for one phase-free spectral representation."""
-
-    size: int
-    grid: int
-    radius: NDArray[np.int32]
-    radius_counts: IntArray
-    passband: BoolArray
-
-
-@dataclass(frozen=True)
 class FoldModel:
     """One standardized dual-ridge model and its held-out rows."""
 
@@ -60,51 +57,6 @@ class FoldModel:
     scale: FloatArray
     active: BoolArray
     weights: FloatArray
-
-
-def make_geometry(size: int = 256, grid: int = 32) -> SpectralGeometry:
-    """Build the radial detrending and pooling geometry."""
-    if size < 16 or grid < 2 or size % grid:
-        raise ValueError("size must be at least 16 and divisible by grid")
-    yy, xx = np.mgrid[:size, :size]
-    radius = np.rint(np.hypot(yy - size // 2, xx - size // 2)).astype(np.int32)
-    radius_counts = np.bincount(radius.ravel())
-    passband = (radius >= 4) & (radius <= size * 0.48)
-    return SpectralGeometry(size, grid, radius, radius_counts, passband)
-
-
-def phase_free_log_spectrum(channel: FloatArray) -> FloatArray:
-    """Return centered log FFT magnitude, deliberately discarding phase."""
-    if channel.ndim != 2:
-        raise ValueError("channel must be a two-dimensional array")
-    centered = np.asarray(channel, dtype=np.float64) - float(np.mean(channel))
-    return np.log1p(np.abs(np.fft.fftshift(np.fft.fft2(centered))))
-
-
-def spectral_feature(pixels: FloatArray, geometry: SpectralGeometry) -> FloatArray:
-    """Extract pooled radial-residual spectra from luma and opponent color."""
-    if pixels.shape != (geometry.size, geometry.size, 3):
-        raise ValueError(f"pixels must have shape {(geometry.size, geometry.size, 3)}, got {pixels.shape}")
-    red, green, blue = np.moveaxis(np.asarray(pixels, dtype=np.float64), 2, 0)
-    channels = (
-        0.299 * red + 0.587 * green + 0.114 * blue,
-        red - green,
-        blue - (red + green) / 2.0,
-    )
-    block = geometry.size // geometry.grid
-    features: list[FloatArray] = []
-    for channel in channels:
-        spectrum = phase_free_log_spectrum(channel)
-        radial_sum = np.bincount(geometry.radius.ravel(), weights=spectrum.ravel())
-        radial_mean = radial_sum / geometry.radius_counts
-        residual = np.where(
-            geometry.passband,
-            spectrum - radial_mean[geometry.radius],
-            0.0,
-        )
-        pooled = residual.reshape(geometry.grid, block, geometry.grid, block).mean(axis=(1, 3))
-        features.append(pooled.ravel())
-    return np.concatenate(features)
 
 
 def _apply_attack(image: Image.Image, attack: str) -> Image.Image:
@@ -140,9 +92,7 @@ def feature_from_path(path: Path, geometry: SpectralGeometry, attack: str) -> Fl
 def feature_from_image(image: Image.Image, geometry: SpectralGeometry, attack: str) -> FloatArray:
     """Extract one attacked feature from an already decoded RGB image."""
     attacked = _apply_attack(image, attack)
-    canonical = attacked.resize((geometry.size, geometry.size), Image.Resampling.LANCZOS)
-    pixels = np.asarray(canonical, dtype=np.float64) / 255.0
-    return spectral_feature(pixels, geometry)
+    return _source_feature_from_image(attacked, geometry)
 
 
 def discover_grouped_paths(

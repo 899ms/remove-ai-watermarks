@@ -129,6 +129,7 @@ application actually uses:
 | `trustmark` | Adobe TrustMark detection on Python 3.11-3.12 | trustmark | Yes |
 | `classify` | Metadata-free photo AI-versus-camera classifier plus gated provider | `pixels`, Torch, Transformers | Yes |
 | `classify-onnx` | Optional CPU-only ONNX vision runtime for `classify` | `classify`, ONNX Runtime | Yes |
+| `source-classify` | Abstaining OpenAI/Google/unknown source-export classifier, not SynthID detection | `pixels`, Hugging Face Hub | Model download, no Torch |
 | `diffusion` | Torch and Diffusers runtime; video SynthID regeneration | `pixels`, Torch, Diffusers | Yes |
 | `migan` | MI-GAN ONNX fill backend | `visible`, ONNX Runtime | Model download, no Torch |
 | `lama` | big-LaMa ONNX fill backend | `visible`, ONNX Runtime | Model download, no Torch |
@@ -156,6 +157,7 @@ flowchart LR
     trustmark
     classify --> pixels
     onnx["classify-onnx"] --> classify
+    source["source-classify"] --> pixels
 ```
 
 `heif`, `trustmark`, and `text-draft` are independent branches. Combine them

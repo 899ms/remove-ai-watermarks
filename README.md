@@ -59,6 +59,7 @@ specialized Python API can inspect and disrupt the validated local
 | --- | --- |
 | Metadata inspection and stripping | `remove-ai-watermarks` |
 | Photograph AI-versus-camera classification | `remove-ai-watermarks[classify]` |
+| OpenAI/Google/unknown source-export classification | `remove-ai-watermarks[source-classify]` |
 | Visible detection and removal | `remove-ai-watermarks[visible]` |
 | Visible video processing | `remove-ai-watermarks[video]` |
 | Video SynthID removal | `remove-ai-watermarks[video,diffusion]` |
@@ -68,7 +69,7 @@ specialized Python API can inspect and disrupt the validated local
 | Every production feature available on the active Python | `remove-ai-watermarks[all]` |
 
 Lower-level and specialized extras include `pixels`, `heif`, `trustmark`,
-`migan`, `lama`, `diffusion`, and `classify-onnx`. The
+`migan`, `lama`, `diffusion`, `classify-onnx`, and `source-classify`. The
 [installation guide](docs/installation.md#feature-extras) documents their exact
 dependency composition, Python compatibility, and model requirements.
 
@@ -95,6 +96,19 @@ remove-ai-watermarks classify image.png
 ```
 
 Guide: [photo pixel classification](docs/photo-classify.md).
+
+For a lightweight, abstaining OpenAI/Google/unknown source-export signal after
+metadata removal, use the separate Python API. It is not a SynthID detector:
+
+```python
+import remove_ai_watermarks as raiw
+
+result = raiw.classify_source("image.png")
+print(result.label, result.reason)
+```
+
+Install `remove-ai-watermarks[source-classify]`. Guide:
+[source-pipeline classification](docs/source-classify.md).
 
 Signed provenance is the supported route for SynthID and `identify` reads it.
 There is no local SynthID pixel detector in the package. Research on a

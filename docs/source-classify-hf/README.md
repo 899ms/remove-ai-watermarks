@@ -62,3 +62,4 @@ should expose the abstention and the model's narrow source-pipeline claim.
 
 Feature extraction and inference are versioned in the
 `remove-ai-watermarks` Python project rather than in this model repository.
+Use its explicit `classify_source` API; `identify` does not run this model.
