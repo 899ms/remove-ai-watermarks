@@ -1,7 +1,7 @@
 """Generated C2PA soft-binding registry; do not edit by hand.
 
 Source: https://raw.githubusercontent.com/c2pa-org/softbinding-algorithm-list/main/softbinding-algorithm-list.json
-Revision: c0218cd628c9163ad62a08c3deff5a10fa0e0d0b
+Revision: 1b3ef637890ea8228bca13d8941cfd54da941867
 Source license: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)
 Changes: validated, ordered, and reduced to fields used at runtime; descriptions
 are shortened to their first sentence for display.
@@ -12,7 +12,7 @@ from __future__ import annotations
 C2PA_SOFT_BINDING_SOURCE_URL = (
     "https://raw.githubusercontent.com/c2pa-org/softbinding-algorithm-list/main/softbinding-algorithm-list.json"
 )
-C2PA_SOFT_BINDING_SOURCE_REVISION = "c0218cd628c9163ad62a08c3deff5a10fa0e0d0b"
+C2PA_SOFT_BINDING_SOURCE_REVISION = "1b3ef637890ea8228bca13d8941cfd54da941867"
 C2PA_SOFT_BINDING_SOURCE_LICENSE = "CC BY 4.0"
 
 C2PA_SOFT_BINDING_ROWS: tuple[
@@ -387,7 +387,7 @@ C2PA_SOFT_BINDING_ROWS: tuple[
         "eu.sasha.softbinding.v1",
         "watermark",
         ("image",),
-        ("image/jpeg", "image/png"),
+        ("image/jpeg", "image/png", "image/webp"),
         (
             "Invisible watermarking technology for image and video assets, enabling C2PA manifest "
             "recovery and content provenance verification after metadata stripping or transcoding"
