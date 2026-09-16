@@ -96,6 +96,41 @@ def edge_pad_to_grid(image: Image.Image, grid: int) -> Image.Image:
     )
 
 
+def diffusers_vae_roundtrip(
+    pipe: Any,
+    image: Image.Image,
+    *,
+    grid: int,
+    device: Any,
+    dtype: Any,
+    profile_name: str,
+) -> Image.Image:
+    """Reconstruct pixels deterministically through a Diffusers pipeline VAE."""
+    import torch
+
+    source_width, source_height = image.size
+    padded = edge_pad_to_grid(image, grid)
+    tensor = pipe.image_processor.preprocess(
+        padded,
+        height=padded.height,
+        width=padded.width,
+    ).to(device=device, dtype=dtype)
+    with torch.inference_mode():
+        encoded = pipe.vae.encode(tensor)
+        if hasattr(encoded, "latent_dist"):
+            # A restoration donor must be deterministic. Diffusers samples this
+            # distribution for img2img noise initialization; its mode is the
+            # faithful VAE reconstruction needed here.
+            latents = encoded.latent_dist.mode()
+        elif hasattr(encoded, "latents"):
+            latents = encoded.latents
+        else:
+            raise AttributeError(f"{profile_name} VAE encoder output contains no latents")
+        decoded = pipe.vae.decode(latents, return_dict=False)[0]
+    reconstructed = pipe.image_processor.postprocess(decoded, output_type="pil")[0]
+    return reconstructed.crop((0, 0, source_width, source_height)).convert("RGB")
+
+
 def resolve_face_model_residency(
     requested: bool | None,
     *,

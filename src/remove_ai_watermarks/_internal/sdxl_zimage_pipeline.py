@@ -28,6 +28,7 @@ from remove_ai_watermarks._internal.two_stage_pipeline import (
     TwoStageZImagePipeline,
     _target_size,
     build_canny_control_image,
+    diffusers_vae_roundtrip,
     requested_steps,
 )
 from remove_ai_watermarks._internal.watermark_profiles import (
@@ -120,3 +121,15 @@ class SdxlZImagePipeline(TwoStageZImagePipeline):
         if result.size != image.size:
             result = result.resize(image.size, Image.Resampling.LANCZOS)
         return result.convert("RGB")
+
+    def _vae_roundtrip(self, image: Image.Image) -> Image.Image:
+        """Reconstruct source pixels through the already loaded SDXL VAE."""
+        pipe = self._load_global()
+        return diffusers_vae_roundtrip(
+            pipe,
+            image,
+            grid=_LATENT_GRID,
+            device=self.device,
+            dtype=self.torch_dtype,
+            profile_name=self.profile_name,
+        )

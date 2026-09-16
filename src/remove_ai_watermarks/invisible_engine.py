@@ -19,7 +19,6 @@ from typing import TYPE_CHECKING, Any
 from ._internal.watermark_profiles import (
     DEFAULT_PROFILE,
     REMOVAL_MODULES,
-    SDXL_ZIMAGE_PROFILE,
     resolve_adaptive_polish,
     resolve_effective_profile,
     resolve_seed,
@@ -192,9 +191,9 @@ class InvisibleEngine:
     def preload(self, *, global_only: bool = False) -> None:
         """Eagerly load the pipeline so download progress is visible.
 
-        For ``qwen-zimage``, ``global_only=True`` loads the mandatory Qwen stage
-        and leaves the optional Z-Image and SAM face stack lazy until a face is
-        detected. Other profiles have no optional stage and ignore the flag.
+        For every concrete profile, ``global_only=True`` loads its mandatory
+        global stage and leaves the shared Z-Image and SAM face stack lazy until
+        a face is detected.
         """
         self._remover.preload(global_only=global_only)
 
@@ -269,13 +268,18 @@ class InvisibleEngine:
 
         seed = resolve_seed(seed)
         effective_profile = resolve_effective_profile(self._remover.configured_profile, vendor)
-        adaptive_polish = resolve_adaptive_polish(adaptive_polish, effective_profile)
+        # Verified text must be the final pixel-writing stage. SDXL normally enables
+        # adaptive polish by profile default, so an unset value becomes False here;
+        # an explicit True remains an error below instead of being silently ignored.
+        adaptive_polish = (
+            False
+            if text_manifest is not None and adaptive_polish is None
+            else resolve_adaptive_polish(adaptive_polish, effective_profile)
+        )
 
         if fidelity_anchor and text_manifest is None:
             raise ValueError("fidelity_anchor requires a text manifest")
         if text_manifest is not None:
-            if effective_profile == SDXL_ZIMAGE_PROFILE:
-                raise ValueError("--text-manifest is not supported by the sdxl-zimage profile")
             if tile:
                 raise ValueError("--text-manifest is not calibrated with --tile")
             if max_resolution != 0:

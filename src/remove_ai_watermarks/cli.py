@@ -318,9 +318,8 @@ _text_manifest_option = click.option(
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     default=None,
     help=(
-        "Experimental verified-text restoration manifest. Requires qwen-zimage or "
-        "chroma-zimage, the text-restoration extra, native untiled geometry, and no "
-        "postprocessing."
+        "Experimental verified-text restoration manifest. Requires the text-restoration "
+        "extra, native untiled geometry, and no postprocessing."
     ),
 )
 

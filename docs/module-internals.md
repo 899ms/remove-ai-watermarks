@@ -1839,8 +1839,8 @@ verification, and geometry-only operators do not need to invent text or script f
 
 When enabled, the one profile selected before model loading reconstructs the source
 once through its already loaded VAE, runs the ordinary global and face stages, and
-calls the shared restoration compositor. Qwen and Chroma implement this donor hook;
-SDXL does not. The optional Qwen-only fidelity anchor first blends 15% of the VAE
+calls the shared restoration compositor. Qwen, SDXL, and Chroma implement this donor
+hook. The optional Qwen-only fidelity anchor first blends 15% of the VAE
 reconstruction into the clean result; it is off by default because the blend returned
 detector-visible OpenAI SynthID in the measured poster fixtures. The compositor derives
 binary source and candidate silhouettes, groups nearby lines, uses LaMa for the initial
@@ -1854,8 +1854,9 @@ extend 8% above and 25% below. The anchored-component gate covers clipped leadin
 flourishes, trailing punctuation, icons, and descenders without walking into
 disconnected decoration or background texture.
 
-The stage is deliberately narrower than the engine: it rejects `sdxl-zimage`, tiles,
-resolution caps, humanize, unsharp, and adaptive polish. Those combinations change
+The stage is deliberately narrower than the engine: it rejects tiles, resolution
+caps, humanize, unsharp, and explicitly enabled adaptive polish. An unset polish
+value resolves to off in this mode, including for SDXL, because those combinations change
 geometry or final pixels after the verified layer and have no measured oracle result.
 It remains opt-in because annotations are manual and provider verdicts apply only to
 the exact tested output hashes, not to the mechanism in general.
@@ -1878,6 +1879,22 @@ Exact output hashes and per-box metrics are produced by
 the `chroma_text_restoration_study.py` harness (kept outside this repository)
 under the gitignored
 `out/text-restoration-engine-study/` directory.
+
+The 2026-09-15 rerun added the SDXL donor implementation and exercised all three
+profiles on the same three manifests. SDXL improved text-box MAE from 11.319 to
+7.970 and from 10.704 to 7.657 on the two OpenAI posters, while PSNR rose from
+25.83 to 29.24 dB and from 26.17 to 29.04 dB. On the tracked Google CJK carrier
+(`4affd7f27767a445db6abf741355743ba8d95108ad922c9fff045feed8492236`, already
+recorded as SynthID-positive), SDXL at the calibrated 0.50 strength improved
+text-box MAE from 10.738 to 8.564 and PSNR from 23.93 to 24.00 dB. The exact
+restored output
+`035e4919e1d84129a347006c98f19eb4431eb5772788f6d2097b94a2c6baec84`
+was submitted to the Google Gemini oracle after provenance stripping preserved
+its decoded pixels; the sanitized upload hash was
+`3e4f06274a7b735f7d06863fd54dc8146f60aeb9cc8315f86294180deb660b82`.
+The oracle returned `not_detected` on 2026-09-16. This
+certifies that one carrier, manifest, seed, runtime, and output hash; it does not
+turn the compositor into a provider-wide guarantee.
 
 A matched stage-isolation check on the 18-face Gemini portrait grid confirms the
 division of responsibility. The visible-cleaned, metadata-stripped control and the
@@ -1986,8 +2003,9 @@ is supported by this pass, so `auto` keeps the measured provenance-cohort table.
 
 [`_internal/sdxl_zimage_pipeline.py`](../src/remove_ai_watermarks/_internal/sdxl_zimage_pipeline.py)
 runs the same two-stage recipe on an SDXL global pass. `SdxlZImagePipeline`
-subclasses `TwoStageZImagePipeline` and implements only the global stage
-(`_load_global`, `_run_global`), so the face stage is inherited rather than copied
+subclasses `TwoStageZImagePipeline` and implements the global stage
+(`_load_global`, `_run_global`) plus the deterministic verified-text VAE donor, so
+the face stage is inherited rather than copied
 and cannot drift between the profiles; a test asserts the shared methods are the
 same objects.
 

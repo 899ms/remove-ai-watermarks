@@ -529,9 +529,9 @@ remove-ai-watermarks invisible image.png -o clean.png \
   --pipeline qwen-zimage --text-manifest verified-lines.json --force
 ```
 
-Use an explicit `qwen-zimage` or `chroma-zimage` profile with this option. For
-Google provenance, `auto` resolves to SDXL, whose VAE path has not been calibrated
-for verified-text restoration and is therefore rejected.
+The option works with `qwen-zimage`, `sdxl-zimage`, `chroma-zimage`, and `auto`.
+Each concrete profile reconstructs the donor through its own already loaded VAE;
+for Google provenance, `auto` therefore keeps the normal SDXL route.
 
 ``verified: true`` may also be set by an automated operator that attests
 machine-verified geometry: stability-gated detector boxes inside sane caps. Such
@@ -556,10 +556,11 @@ container changes remain valid while a resized or edited source fails closed. Th
 experimental helper
 `remove_ai_watermarks._internal.text_restoration.source_pixel_sha256` computes it.
 
-This mode is supported by `qwen-zimage`, `chroma-zimage`, and `auto` at native
-geometry with `humanize=0`, `unsharp=0`, and adaptive polish disabled. The legacy
-`sdxl-zimage` profile does not expose a verified-text VAE donor. `all` also accepts the flag,
-but its manifest must match the pixels entering the invisible stage; if visible-mark
+This mode is supported by every profile at native geometry with `humanize=0` and
+`unsharp=0`. An unset adaptive-polish option is forced off so verified text remains
+the final pixel-writing stage; an explicit request to enable it is rejected. `all`
+also accepts the flag, but its
+manifest must match the pixels entering the invisible stage; if visible-mark
 removal changes those pixels, the hash check rejects the run. One oracle verdict does
 not certify another manifest, seed, model/runtime version, or output hash.
 

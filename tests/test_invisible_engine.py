@@ -64,7 +64,6 @@ class TestVerifiedTextMode:
         manifest = tmp_path / "manifest.json"
         manifest.write_text("{}", encoding="utf-8")
         cases = (
-            ("sdxl-zimage", {}, "not supported by the sdxl-zimage profile"),
             ("qwen-zimage", {"tile": True}, "not calibrated with --tile"),
             ("qwen-zimage", {"max_resolution": 1024}, "max-resolution 0"),
             ("qwen-zimage", {"humanize": 1.0}, "humanize=0"),
@@ -85,19 +84,6 @@ class TestVerifiedTextMode:
             self._engine().remove_watermark(
                 tmp_path / "unused.png",
                 fidelity_anchor=True,
-            )
-
-    def test_auto_rejects_google_text_manifest_before_model_loading(self, tmp_path):
-        import pytest
-
-        manifest = tmp_path / "manifest.json"
-        manifest.write_text("{}", encoding="utf-8")
-
-        with pytest.raises(ValueError, match="not supported by the sdxl-zimage profile"):
-            self._engine("auto").remove_watermark(
-                tmp_path / "unused.png",
-                text_manifest=manifest,
-                vendor="google",
             )
 
     def test_loads_and_forwards_verified_manifest(self, tmp_path, monkeypatch):
@@ -137,9 +123,10 @@ class TestVerifiedTextMode:
         engine._remover.remove_watermark = fake_remove
         monkeypatch.setattr(region_eraser, "lama_available", lambda: True)
 
-        engine.remove_watermark(source, output, text_manifest=manifest)
+        engine.remove_watermark(source, output, text_manifest=manifest, vendor="google")
 
         assert seen["text_manifest"].lines[0].text == "Exact"
+        assert seen["vendor"] == "google"
         # Leak-safe default since 0.27.1: the global 15% donor blend is OFF unless
         # explicitly requested (measured to return detector-visible OpenAI SynthID
         # on poster-scale manifests; see docs/text-protection-research.md).

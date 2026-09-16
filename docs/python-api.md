@@ -780,11 +780,11 @@ engine.remove_watermark(
 
 Install `remove-ai-watermarks[text-restoration]`. The manifest schema and safety
 constraints are documented in the CLI guide. The engine verifies its decoded RGB
-hash before loading the diffusion models. Qwen and Chroma reconstruct the donor with
-the VAE already loaded for the selected profile; no second generative profile runs.
-The engine rejects SDXL, including `auto` when Google provenance selects it,
-downscaling, and postprocessing combinations that were not evaluated. Tiling is
-also rejected because the combined
+hash before loading the diffusion models. Qwen, SDXL, and Chroma reconstruct the
+donor with the VAE already loaded for the selected profile; no second generative
+profile runs. The engine turns an unset `adaptive_polish` off in verified-text mode
+and rejects explicit postprocessing or downscaling combinations that were not
+evaluated. Tiling is also rejected because the combined
 tiled-restoration path has no provider-oracle calibration. `InvisibleOptions` exposes
 the same field for `remove_all`; after a visible-stage edit, the manifest must be built
 against the staged pixels rather than the pristine source.

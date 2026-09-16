@@ -996,6 +996,70 @@ def test_sdxl_zimage_inherits_the_face_stage_rather_than_copying_it():
     assert SdxlZImagePipeline._load_global is not QwenZImagePipeline._load_global
 
 
+@pytest.mark.parametrize(
+    ("pipeline_module", "pipeline_class", "grid"),
+    [
+        ("sdxl_zimage_pipeline", "SdxlZImagePipeline", 8),
+        ("chroma_zimage_pipeline", "ChromaZImagePipeline", 16),
+    ],
+)
+def test_diffusers_vae_roundtrip_uses_deterministic_mode_and_restores_native_size(
+    monkeypatch, pipeline_module, pipeline_class, grid
+):
+    """Diffusers donors pad without distorting geometry and never sample."""
+    import importlib
+
+    import torch
+
+    seen: dict[str, object] = {}
+    padded_width = 40 if grid == 8 else 48
+    padded_height = 24 if grid == 8 else 32
+    latent = torch.ones(1, 4, padded_height // 8, padded_width // 8)
+
+    class LatentDistribution:
+        def mode(self):
+            seen["mode_calls"] = int(seen.get("mode_calls", 0)) + 1
+            return latent
+
+        def sample(self, *_args, **_kwargs):
+            raise AssertionError("A verified-text donor must not sample VAE latents")
+
+    class FakeVae:
+        @staticmethod
+        def encode(tensor):
+            seen["encoded_shape"] = tuple(tensor.shape)
+            return type("Encoded", (), {"latent_dist": LatentDistribution()})()
+
+        @staticmethod
+        def decode(received, *, return_dict):
+            assert received is latent
+            assert return_dict is False
+            return (torch.zeros(1, 3, padded_height, padded_width),)
+
+    class FakeProcessor:
+        @staticmethod
+        def preprocess(image, *, height, width):
+            seen["preprocess"] = (image.size, height, width)
+            return torch.zeros(1, 3, height, width)
+
+        @staticmethod
+        def postprocess(decoded, *, output_type):
+            assert output_type == "pil"
+            return [Image.new("RGB", (decoded.shape[3], decoded.shape[2]))]
+
+    pipe = type("FakePipe", (), {"vae": FakeVae(), "image_processor": FakeProcessor()})()
+    module = importlib.import_module(f"remove_ai_watermarks._internal.{pipeline_module}")
+    pipeline = getattr(module, pipeline_class)(device="cpu", torch_dtype=torch.float32)
+    monkeypatch.setattr(pipeline, "_load_global", lambda: pipe)
+
+    result = pipeline._vae_roundtrip(Image.new("RGB", (35, 19)))
+
+    assert seen["preprocess"] == ((padded_width, padded_height), padded_height, padded_width)
+    assert seen["encoded_shape"] == (1, 3, padded_height, padded_width)
+    assert seen["mode_calls"] == 1
+    assert result.size == (35, 19)
+
+
 def test_chroma_zimage_strength_uses_measured_flat_floors():
     """The chroma floors come from the four-cohort oracle calibration; they must not
     drift from their derivation in watermark_profiles."""
@@ -1163,8 +1227,9 @@ def test_chroma_zimage_floors_to_its_own_latent_grid():
     assert chroma_target_size(3, 3) == (16, 16)
 
 
-def test_watermark_remover_accepts_text_manifest_for_chroma_but_not_sdxl(tmp_path, monkeypatch):
-    """Chroma owns a VAE donor; SDXL still fails at the public boundary."""
+@pytest.mark.parametrize("profile", ["chroma-zimage", "sdxl-zimage"])
+def test_watermark_remover_accepts_text_manifest_for_every_diffusers_profile(tmp_path, monkeypatch, profile):
+    """Both Diffusers profiles forward reviewed text to their VAE donor."""
     from remove_ai_watermarks._internal.text_restoration import VerifiedTextLine, VerifiedTextManifest
     from remove_ai_watermarks._internal.watermark_remover import WatermarkRemover
 
@@ -1173,22 +1238,18 @@ def test_watermark_remover_accepts_text_manifest_for_chroma_but_not_sdxl(tmp_pat
     Image.new("RGB", (96, 80)).save(source)
     manifest = VerifiedTextManifest("0" * 64, 96, 80, (VerifiedTextLine((4, 4, 20, 16), "x", "alphabetic"),))
 
-    chroma = WatermarkRemover(device="cuda", pipeline="chroma-zimage")
-    chroma_runtime = MagicMock()
-    chroma_runtime.run.return_value = Image.new("RGB", (96, 80))
-    monkeypatch.setattr(chroma, "_load_qwen_zimage_pipeline", lambda: chroma_runtime)
+    remover = WatermarkRemover(device="cuda", pipeline=profile)
+    runtime = MagicMock()
+    runtime.run.return_value = Image.new("RGB", (96, 80))
+    monkeypatch.setattr(remover, "_load_qwen_zimage_pipeline", lambda: runtime)
 
-    chroma.remove_watermark(source, text_manifest=manifest)
+    remover.remove_watermark(source, text_manifest=manifest)
 
-    assert chroma_runtime.run.call_count == 1
-    assert chroma_runtime.run.call_args.kwargs["text_manifest"] is manifest
+    assert runtime.run.call_count == 1
+    assert runtime.run.call_args.kwargs["text_manifest"] is manifest
     with pytest.raises(ValueError, match=r"fidelity anchor.*qwen-zimage"):
-        chroma.remove_watermark(source, text_manifest=manifest, fidelity_anchor=True)
-    assert chroma_runtime.run.call_count == 1
-
-    sdxl = WatermarkRemover(device="cuda", pipeline="sdxl-zimage")
-    with pytest.raises(ValueError, match="not supported by the sdxl-zimage profile"):
-        sdxl.remove_watermark(source, text_manifest=manifest)
+        remover.remove_watermark(source, text_manifest=manifest, fidelity_anchor=True)
+    assert runtime.run.call_count == 1
 
 
 def test_watermark_remover_dispatches_to_chroma_pipeline(monkeypatch):
@@ -1227,58 +1288,6 @@ def test_chroma_adaptive_polish_defaults_off():
 
     assert resolve_adaptive_polish(None, "chroma-zimage") is False
     assert resolve_adaptive_polish(True, "chroma-zimage") is True
-
-
-def test_chroma_vae_roundtrip_uses_deterministic_mode_and_restores_native_size(monkeypatch):
-    """The Chroma donor pads without distorting geometry and never samples."""
-    import torch
-
-    from remove_ai_watermarks._internal.chroma_zimage_pipeline import ChromaZImagePipeline
-
-    seen: dict[str, object] = {}
-    latent = torch.ones(1, 4, 4, 6)
-
-    class LatentDistribution:
-        def mode(self):
-            seen["mode_calls"] = int(seen.get("mode_calls", 0)) + 1
-            return latent
-
-        def sample(self, *_args, **_kwargs):
-            raise AssertionError("A verified-text donor must not sample VAE latents")
-
-    class FakeVae:
-        @staticmethod
-        def encode(tensor):
-            seen["encoded_shape"] = tuple(tensor.shape)
-            return type("Encoded", (), {"latent_dist": LatentDistribution()})()
-
-        @staticmethod
-        def decode(received, *, return_dict):
-            assert received is latent
-            assert return_dict is False
-            return (torch.zeros(1, 3, 32, 48),)
-
-    class FakeProcessor:
-        @staticmethod
-        def preprocess(image, *, height, width):
-            seen["preprocess"] = (image.size, height, width)
-            return torch.zeros(1, 3, height, width)
-
-        @staticmethod
-        def postprocess(decoded, *, output_type):
-            assert output_type == "pil"
-            return [Image.new("RGB", (decoded.shape[3], decoded.shape[2]))]
-
-    pipe = type("FakePipe", (), {"vae": FakeVae(), "image_processor": FakeProcessor()})()
-    pipeline = ChromaZImagePipeline(device="cpu", torch_dtype=torch.float32)
-    monkeypatch.setattr(pipeline, "_load_global", lambda: pipe)
-
-    result = pipeline._vae_roundtrip(Image.new("RGB", (35, 19)))
-
-    assert seen["preprocess"] == ((48, 32), 32, 48)
-    assert seen["encoded_shape"] == (1, 3, 32, 48)
-    assert seen["mode_calls"] == 1
-    assert result.size == (35, 19)
 
 
 def test_chroma_google_uses_one_content_agnostic_floor():

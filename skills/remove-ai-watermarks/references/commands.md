@@ -94,6 +94,10 @@ chroma-zimage for Microsoft, qwen-zimage for OpenAI (since CLI 0.39.0), Meta and
 -- so prefer it over naming an engine when the user has no reason to care. `sdxl-zimage` is the
 heavier alternative and `chroma-zimage` is the Apache-2.0 global stage.
 
+Verified-text manifests work with every profile (since CLI 0.40.5). Each profile
+uses its own already loaded VAE donor, so `auto` keeps the normal SDXL route for a
+Google image instead of switching engines.
+
 ```bash
 remove-ai-watermarks all image.png -o clean.png
 remove-ai-watermarks batch ./images --mode visible --output-dir ./clean

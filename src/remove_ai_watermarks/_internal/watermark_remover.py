@@ -250,8 +250,6 @@ class WatermarkRemover:
             self.model_profile = resolved
             self.torch_dtype = _dtype_for_profile(resolved)
             self._qwen_zimage_pipeline = None
-        if text_manifest is not None and self.model_profile == SDXL_ZIMAGE_PROFILE:
-            raise ValueError("Verified text restoration is not supported by the sdxl-zimage profile")
         if text_manifest is not None and tile:
             raise ValueError("Verified text restoration is not calibrated with tiled diffusion")
         if fidelity_anchor and self.model_profile != QWEN_ZIMAGE_PROFILE:
