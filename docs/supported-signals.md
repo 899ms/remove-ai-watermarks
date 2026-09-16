@@ -171,7 +171,11 @@ and `scripts/synthid_runtime/`.
 The tool recognizes presence from supported provenance: Google AI C2PA
 under Google's all-media watermark policy, and current OpenAI C2PA carrying an
 explicit `c2pa.watermarked.*` action. Legacy OpenAI C2PA without that action
-does not assert SynthID.
+does not assert SynthID. GPT Image 2.5 Flare and Sunburst were verified on
+2026-09-15: both API outputs carried valid OpenAI C2PA with
+`c2pa.watermarked.unbound` and exercised the existing model-independent OpenAI
+route. Automatic routing selected `qwen-zimage` with the OpenAI strength cohort,
+and both outputs cleared the official OpenAI SynthID check.
 
 Provider verifiers and provenance APIs are reserved for development-time
 calibration. They are not exposed through the installed CLI, the top-level

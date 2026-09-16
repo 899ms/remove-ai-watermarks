@@ -2272,6 +2272,17 @@ resolution case -- every verdict so far comes from one fixture and one seed.
 Both ends of the shipped curve now have oracle verdicts, and the shipped curve clears
 everything it has been tested at:
 
+A source-fresh GPT Image 2.5 check on 2026-09-15 exercised the complete shipped
+profile rather than only a strength sweep. One 1024 x 1024 API generation from
+Flare and one from Sunburst both validated as current OpenAI C2PA, routed to the
+flat OpenAI strength, and remained OpenAI SynthID-positive after pixel-identical
+metadata removal. The complete `qwen-zimage` profile at 0.07675, seed 0, cleared
+both in the official OpenAI Content Provenance API. The Flare output measured
+37.48 dB PSNR / 0.9329 SSIM and the Sunburst output 37.01 dB / 0.9179 against
+their sources. Those fidelity numbers describe two neutral studio-photo
+carriers, not a content-wide quality estimate, and the source-positive/output-negative
+oracle pairs do not replace the wider OpenAI calibration that set the floor.
+
 | oracle | fixture size | detected at | clean from |
 |---|---|---|---|
 | openai.com/verify | 1.57 MP | 0.06 | 0.08 |
