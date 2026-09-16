@@ -80,11 +80,14 @@ def test_web_results_survive_later_browser_failure(monkeypatch, tmp_path):
         "slot": {},
         "rows": [{"artifact_id": "first", "upload_path": "one"}, {"artifact_id": "second", "upload_path": "two"}],
     }
-    results = {"rows": [{"watermark_result": None}, {"watermark_result": None}]}
+    results = {
+        "manifest_sha256": "0" * 64,
+        "rows": [{"watermark_result": None}, {"watermark_result": None}],
+    }
     saved = []
     monkeypatch.setattr(web.oracles, "verify_batch", lambda *a, **k: {})
     monkeypatch.setattr(web.oracles, "load_batch", lambda *a: (manifest, results))
-    monkeypatch.setattr(web, "proxy_settings", lambda *a: None)
+    monkeypatch.setattr(web, "proxy_settings", lambda *a, **k: None)
     monkeypatch.setattr(web.oracles, "record_result", lambda *a, **k: saved.append(k))
 
     def submit(*args, **kwargs):

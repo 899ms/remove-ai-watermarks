@@ -88,6 +88,14 @@ OpenAI, Microsoft, and Meta Web slots may each name one of them through
 verify egress before relying on it, and never automatically change route after
 a refusal. Bound a batch before starting.
 
+ThorData user-and-password endpoints without `sessid` rotate the exit on each
+request, which breaks a browser page whose resources must share one network
+identity. The runner therefore derives one sticky `sessid` from the immutable
+manifest hash and keeps it for that batch. A new prepared batch gets a new
+session; rerunning or resuming the same batch keeps its session while the proxy
+retains it. An explicit `sessid` in the configured route is preserved. This is
+session continuity, not permission to retry a refused batch on another route.
+
 ### OpenAI API
 
 Use `check-openai` with one explicit upload acknowledgement. Keep named API keys

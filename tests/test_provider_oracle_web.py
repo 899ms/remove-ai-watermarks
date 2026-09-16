@@ -13,6 +13,18 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
+def _thordata_slot() -> oracles.ExecutionSlot:
+    return {
+        "name": "openai-thordata-us",
+        "surface": "openai-web",
+        "account_label": None,
+        "browser_profile": None,
+        "google_account_index": None,
+        "network_label": "thordata-us-residential",
+        "proxy_url_env": "THORDATA_ROUTE_US",
+    }
+
+
 @pytest.mark.parametrize(
     ("surface", "page_text", "watermark", "provenance"),
     [
@@ -171,6 +183,31 @@ def test_proxy_settings_are_loaded_from_an_environment_reference() -> None:
     }
 
 
+def test_thordata_proxy_settings_pin_one_exit_for_the_browser_session() -> None:
+    proxy = web.proxy_settings(
+        _thordata_slot(),
+        {"THORDATA_ROUTE_US": "http://route:secret@gateway.pr.thordata.net:9999"},
+        sticky_session_id="oracle0123456789abcdef",
+    )
+
+    assert proxy == {
+        "server": "http://gateway.pr.thordata.net:9999",
+        "username": "route-sessid-oracle0123456789abcdef-sesstime-90",
+        "password": "secret",
+    }
+
+
+def test_thordata_proxy_settings_preserve_an_explicit_session() -> None:
+    proxy = web.proxy_settings(
+        _thordata_slot(),
+        {"THORDATA_ROUTE_US": ("http://route-sessid-manual-sesstime-15:secret@gateway.pr.thordata.net:9999")},
+        sticky_session_id="oracle0123456789abcdef",
+    )
+
+    assert proxy is not None
+    assert proxy["username"] == "route-sessid-manual-sesstime-15"
+
+
 def test_proxy_settings_do_not_treat_a_missing_secret_as_direct_access() -> None:
     slot: oracles.ExecutionSlot = {
         "name": "openai-west",
@@ -290,27 +327,18 @@ def test_run_web_batch_loads_the_selected_proxy_from_dotenv(
     tmp_path: Path,
     tmp_clean_png: Path,
 ) -> None:
-    slot: oracles.ExecutionSlot = {
-        "name": "openai-thordata-us",
-        "surface": "openai-web",
-        "account_label": None,
-        "browser_profile": None,
-        "google_account_index": None,
-        "network_label": "thordata-us-residential",
-        "proxy_url_env": "THORDATA_ROUTE_US",
-    }
     manifest_path = oracles.prepare_batch(
         "openai-web",
         [tmp_clean_png],
         output_dir=tmp_path / "oracle-batch",
         repository_root=oracles.REPOSITORY_ROOT,
-        slot=slot,
+        slot=_thordata_slot(),
     )
     env_path = tmp_path / ".env"
     env_path.write_text(
         "THORDATA_PASSWORD=test-thordata-password\n"
         "THORDATA_ROUTE_US=http://td-customer-user-country-US:${THORDATA_PASSWORD}"
-        "@proxy.thordata.test:9999\n",
+        "@proxy.pr.thordata.net:9999\n",
         encoding="utf-8",
     )
     proxies: list[dict[str, str] | None] = []
@@ -339,10 +367,11 @@ def test_run_web_batch_loads_the_selected_proxy_from_dotenv(
     )
 
     assert report["watermark_results"] == {"not_detected": 1}
+    manifest_sha256 = json.loads((manifest_path.parent / "results.json").read_text(encoding="utf-8"))["manifest_sha256"]
     assert proxies == [
         {
-            "server": "http://proxy.thordata.test:9999",
-            "username": "td-customer-user-country-US",
+            "server": "http://proxy.pr.thordata.net:9999",
+            "username": (f"td-customer-user-country-US-sessid-oracle{manifest_sha256[:16]}-sesstime-90"),
             "password": "test-thordata-password",
         }
     ]

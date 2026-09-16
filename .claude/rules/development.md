@@ -47,6 +47,10 @@ real browser. Proxy credentials are read only through a slot's named environment
 and never enter a manifest or log. Dotenv interpolation may derive routed proxy URLs from
 one secret key without mutating the process environment. A selected proxy context may
 accept that proxy's TLS interception certificate; direct contexts keep normal TLS checks.
+ThorData rotating endpoints are pinned to one manifest-derived sticky session for the
+life of a Web batch so one browser context does not change exit identity between page
+requests. This is route continuity, not account or IP failover; a refusal still ends on
+the selected slot and never selects another route automatically.
 Upload readiness is surface-specific: OpenAI reaches it at page load but keeps background
 requests alive, while Microsoft and Meta require network idle. Preserve exact provider
 errors as indeterminate evidence rather than retrying or interpreting them as clean.

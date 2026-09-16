@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from time import monotonic
@@ -125,8 +126,10 @@ def parse_provider_result(surface: str, page_text: str) -> WebVerdict:
 def proxy_settings(
     slot: oracles.ExecutionSlot,
     environ: Mapping[str, str] = os.environ,
+    *,
+    sticky_session_id: str | None = None,
 ) -> ProxySettings | None:
-    """Resolve a secret proxy URL without putting it in a manifest or log."""
+    """Resolve a secret proxy URL and pin rotating ThorData routes per batch."""
     variable = slot.get("proxy_url_env")
     if variable is None:
         return None
@@ -142,7 +145,13 @@ def proxy_settings(
         server = f"{server}:{parsed.port}"
     settings: ProxySettings = {"server": server}
     if parsed.username is not None:
-        settings["username"] = unquote(parsed.username)
+        username = unquote(parsed.username)
+        is_thordata = parsed.hostname.endswith((".thordata.net", ".thordata.online"))
+        if is_thordata and sticky_session_id is not None and "-sessid-" not in username.casefold():
+            if re.fullmatch(r"[A-Za-z0-9]{1,32}", sticky_session_id) is None:
+                raise ValueError("sticky_session_id must be 1-32 ASCII letters or digits")
+            username = f"{username}-sessid-{sticky_session_id}-sesstime-90"
+        settings["username"] = username
     if parsed.password is not None:
         settings["password"] = unquote(parsed.password)
     return settings
@@ -287,7 +296,11 @@ def run_web_batch(
     if slot is None:
         raise ValueError("Playwright batches require an explicit execution slot")
     secret_values = dict(environ) if env_file is None else oracles.secret_environment(env_file, environ=environ)
-    proxy = proxy_settings(slot, secret_values)
+    proxy = proxy_settings(
+        slot,
+        secret_values,
+        sticky_session_id=f"oracle{results['manifest_sha256'][:16]}",
+    )
     pending = [
         (manifest_row, result_row)
         for manifest_row, result_row in zip(manifest["rows"], results["rows"], strict=True)

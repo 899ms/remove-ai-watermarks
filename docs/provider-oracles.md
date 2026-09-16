@@ -386,6 +386,16 @@ navigation before each upload, does not retry, and stores the settled page text.
 Each completed verdict is persisted immediately with its own observation
 timestamp. A later navigation or upload failure preserves those completed
 rows and leaves unobserved rows unresolved.
+ThorData [user-and-password endpoints without a `sessid` rotate the exit on each
+request](https://doc.thordata.com/doc/proxies/residential-proxies/session-control).
+That is unsuitable inside one browser context: page resources can
+arrive through different exits and trigger the provider's bot checks. For a
+ThorData hostname, the runner derives a non-secret sticky session id from the
+immutable manifest hash and appends a 90-minute session window when the
+configured username has no explicit session. The same batch therefore keeps
+one route while the provider retains it, a new prepared batch gets a distinct
+route, and an operator-supplied `sessid` remains unchanged. This pins a selected
+route; it does not retry or fail over after a refusal.
 For a selected proxy route it enables certificate handling in that isolated
 Chromium launch and context; direct launches keep Playwright's normal TLS
 verification. A 2026-09-07 preflight sent one read-only request through each
@@ -422,6 +432,17 @@ than clean. The official API then returned HTTP 200 and SynthID `not_detected`
 for the same processed source hash. Keep each route in its own immutable batch;
 do not splice an isolated-runner failure and a first-party browser or API verdict into
 one response.
+
+On 2026-09-16, a rotating ThorData browser batch demonstrated the failure mode:
+one upload reached OpenAI's generic error, four encountered Cloudflare, and ten
+became unreachable after the browser context closed. Five fresh connections to
+the same rotating endpoint had five distinct exits, while five connections with
+one sticky session had one exit. After session pinning, one direct route and
+five independently prepared country routes all reached the upload handler with
+the same prepared test image, but every route returned OpenAI's exact generic
+error. Record those responses as `indeterminate`. The result distinguishes the
+fixed session-continuity defect from the remaining anonymous-Web availability
+problem; further route changes are not a substitute for an API verdict.
 
 ## OpenAI API
 
