@@ -255,13 +255,15 @@ lists it: uv serves its cached pre-release view of the index. Re-run with a
 fresh cache (`UV_CACHE_DIR=$(mktemp -d)`) before treating it as a release
 failure.
 
-The ComfyUI sync run can fail the same way on its own: it resolves the version
-from the PyPI JSON API (which updates first) but installs the test dependency
-with pip against the simple index, whose CDN edges lag by minutes. The
-`distribute.yml` waiter also has a clock: 0.40.0's node suite finished after
-the 15-minute poll, so the job now waits 30 minutes and then accepts a
-registry row that already requires this library version. Rerun the failed
-`comfyui` job only when the registry still has no such row.
+The ComfyUI sync resolves the version from the PyPI JSON API but installs its
+test dependency through pip's simple index, whose CDN edges can lag by
+minutes. `distribute.yml` gates every downstream job on both APIs listing the
+release, so it cannot dispatch that race again. The ComfyUI waiter itself has
+a clock: 0.40.0's node suite finished after the 15-minute poll, so it now
+waits 30 minutes and then accepts a registry row that already requires this
+library version. For an older distribution that started before the simple
+index caught up, rerun its failed `comfyui` job only when the registry still
+has no such row.
 
 The automatic `verify-release.yml` run after `distribute.yml` checks the
 Hugging Face Space pin. When `RAIW_HF_SPACE_TOKEN` is set, that pin lands

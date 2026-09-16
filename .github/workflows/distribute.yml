@@ -7,8 +7,8 @@ name: Distribute on release
 #   - HF Space: factory-rebuild the version already pinned in the Space repo.
 #   - ComfyUI: sync, test, and publish the node against the exact library release.
 #   - ClawHub: publish the agent skill when its own version moved.
-# All wait for the freshly published sdist to appear on PyPI first, since the
-# Release event fires in parallel with publish.yml's upload.
+# All wait for the freshly published distribution to appear in both PyPI APIs
+# first, since the Release event fires in parallel with publish.yml's upload.
 
 on:
   release:
@@ -22,6 +22,9 @@ on:
 jobs:
   resolve:
     runs-on: ubuntu-latest
+    # Thirty attempts may spend up to 20 seconds each in the JSON request,
+    # simple-index request, and inter-attempt delay. Leave bounded headroom.
+    timeout-minutes: 25
     outputs:
       version: ${{ steps.v.outputs.version }}
       url: ${{ steps.sdist.outputs.url }}
@@ -63,26 +66,35 @@ jobs:
           path: release-identity.json
           if-no-files-found: error
 
-      - name: Wait for the sdist on PyPI, capture url + sha256
+      - name: Wait for the PyPI JSON and simple indexes, capture sdist metadata
         id: sdist
         run: |
           set -euo pipefail
           v="${{ steps.v.outputs.version }}"
           for i in $(seq 1 30); do
-            if rel=$(curl -fsSL "https://pypi.org/pypi/remove-ai-watermarks/$v/json" 2>/dev/null); then
-              url=$(echo "$rel" | python3 -c "import sys,json;d=json.load(sys.stdin);print(next((u['url'] for u in d['urls'] if u['packagetype']=='sdist'),''))")
-              sha=$(echo "$rel" | python3 -c "import sys,json;d=json.load(sys.stdin);print(next((u['digests']['sha256'] for u in d['urls'] if u['packagetype']=='sdist'),''))")
+            if rel=$(curl --connect-timeout 10 --max-time 20 -fsSL "https://pypi.org/pypi/remove-ai-watermarks/$v/json" 2>/dev/null); then
+              read -r url sha <<< "$(echo "$rel" | python3 -c "import sys,json;u=next((u for u in json.load(sys.stdin)['urls'] if u['packagetype']=='sdist'),{});print(u.get('url',''),u.get('digests',{}).get('sha256',''))")"
               if [ -n "$url" ] && [ -n "$sha" ]; then
-                echo "url=$url" >> "$GITHUB_OUTPUT"
-                echo "sha=$sha" >> "$GITHUB_OUTPUT"
-                echo "Found sdist for $v"
-                exit 0
+                # PyPI's JSON API can show a freshly uploaded file before the
+                # simple index used by pip has caught up. Downstream release
+                # jobs install by package version, so waiting on JSON alone
+                # creates a release-time race for them.
+                simple=$(curl --connect-timeout 10 --max-time 20 -fsSL https://pypi.org/simple/remove-ai-watermarks/ 2>/dev/null || true)
+                artifact=${url##*/}
+                if [[ "$simple" == *"$artifact"* ]]; then
+                  echo "url=$url" >> "$GITHUB_OUTPUT"
+                  echo "sha=$sha" >> "$GITHUB_OUTPUT"
+                  echo "PyPI JSON and simple indexes list $v"
+                  exit 0
+                fi
               fi
             fi
-            echo "sdist for $v not on PyPI yet (attempt $i), waiting..."
-            sleep 20
+            if [ "$i" -lt 30 ]; then
+              echo "PyPI indexes do not both list $v yet (attempt $i), waiting..."
+              sleep 20
+            fi
           done
-          echo "::error::sdist for $v did not appear on PyPI in time"
+          echo "::error::PyPI JSON and simple indexes did not both list $v in time"
           exit 1
 
   homebrew:
