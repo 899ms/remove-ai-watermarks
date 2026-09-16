@@ -1,0 +1,64 @@
+name: Publish source classifier to Hugging Face
+
+# Manual only. The derivative model weights live in a GitHub model-freeze
+# release; the private training corpus and caches never enter this repository.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type publish"
+        required: true
+      weights_tag:
+        description: "GitHub Release tag holding source-pipeline-mlp.npz"
+        required: true
+        default: source-classify-freeze-2026-09-16
+
+jobs:
+  publish:
+    if: ${{ github.event.inputs.confirm == 'publish' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+
+      - name: Download derivative model weights
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.inputs.weights_tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p weights
+          gh release download "$TAG" \
+            --repo "${{ github.repository }}" \
+            --pattern source-pipeline-mlp.npz \
+            --dir weights
+          test -s weights/source-pipeline-mlp.npz
+
+      - name: Verify the frozen artifact
+        run: |
+          set -euo pipefail
+          expected="$(jq -r .artifact_sha256 docs/source-classify-hf/metrics.json)"
+          test "${#expected}" -eq 64
+          echo "$expected  weights/source-pipeline-mlp.npz" | sha256sum --check
+
+      - name: Publish to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "${HF_TOKEN:-}" ]; then
+            echo "HF_TOKEN secret is not set" >&2
+            exit 1
+          fi
+          uv run --no-project --with huggingface-hub \
+            python scripts/publish_source_classify_hf.py \
+            --src weights \
+            --message "Source-classify freeze (GitHub ${SHA:0:7})"

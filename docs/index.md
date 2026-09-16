@@ -42,6 +42,7 @@ The current behavior is defined by the code, tests, README, and user guides.
 - [AI-generated image classifiers](ai-generated-image-classifiers.md) (photo AI-versus-camera freeze consumed by `classify_pixels`, not `identify`)
 - [Photo classifier Hugging Face card](photo-classify-hf/README.md) (Hub publication text of the 2026-08-31 freeze)
 - [SynthID source classifiers](synthid-classifiers.md) (metadata-free OpenAI/Gemini source finding and provider-lineage experiments)
+- [Source-pipeline classifier model card](source-classify-hf/README.md) (published derivative weights, aggregate evaluation, and intended-use boundary)
 - [SynthID local detector research](synthid-detector-research.md)
 - [SynthID mark removal research](synthid-removal-research.md)
 - [SynthID identity research](synthid-robust-identity-research.md)

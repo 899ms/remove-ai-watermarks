@@ -1,0 +1,22 @@
+{
+  "claim": "abstaining OpenAI/Google source-pipeline classification; not SynthID detection",
+  "artifact_sha256": "0df4c644d02616265d083dbd3204e4dc617f7133b94af0eb0dc59d5362189290",
+  "classes": ["openai", "google", "unknown"],
+  "locked_internal_test": {
+    "n": 5369,
+    "confusion_actual_by_predicted": [[230, 6, 145], [0, 217, 160], [41, 24, 4546]],
+    "recall": {"openai": 0.6036745407, "google": 0.5755968170, "unknown": 0.9859032748},
+    "precision": {"openai": 0.8487084871, "google": 0.8785425101, "unknown": 0.9371263657}
+  },
+  "public_external_originals": {
+    "dataset": "bigdatamark/synthid-research",
+    "n": 900,
+    "confusion_actual_by_predicted": [[206, 0, 94], [0, 244, 56], [0, 3, 297]],
+    "recall": {"openai": 0.6866666667, "google": 0.8133333333, "unknown": 0.99},
+    "precision": {"openai": 1.0, "google": 0.9878542510, "unknown": 0.6644295302}
+  },
+  "selection": {
+    "minimum_calibration_precision": {"openai": 0.99, "google": 0.95},
+    "maximum_calibration_unknown_false_positive_rate": 0.01
+  }
+}

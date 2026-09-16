@@ -24,6 +24,8 @@ import shutil
 import tempfile
 from pathlib import Path
 
+from hf_publish import publish_model_folder
+
 log = logging.getLogger(__name__)
 
 HUB_REPO = "wiltodelta/raiw-photo-classify"
@@ -92,18 +94,13 @@ def stage_weights(dest: Path, src: Path) -> None:
 
 
 def publish(stage: Path, *, token: str, message: str) -> str:
-    from huggingface_hub import HfApi, create_repo
-
-    create_repo(HUB_REPO, repo_type="model", exist_ok=True, private=False, token=token)
-    api = HfApi(token=token)
-    commit = api.upload_folder(
-        folder_path=str(stage),
+    return publish_model_folder(
+        stage,
         repo_id=HUB_REPO,
-        repo_type="model",
-        commit_message=message,
+        token=token,
+        message=message,
         allow_patterns=["README.md", "operating-point.json", *WEIGHT_FILES, GATE_FILE, GATE_STABLE_FILE],
     )
-    return getattr(commit, "oid", "") or ""
 
 
 def main() -> int:

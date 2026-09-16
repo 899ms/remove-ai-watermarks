@@ -112,6 +112,40 @@ and a causal marked/unmarked contrast. Mark's same-prompt triples remain an
 external source/export test, not evidence that the fitted features read the
 SynthID payload.
 
+### Full-corpus source-pipeline model, 2026-09-16
+
+The next experiment trained a compact nonlinear head on the complete available
+private corpus, including target-provider exports, photographs, and foreign
+generator negatives. The corpus itself is not published. The released
+`source-pipeline-mlp.npz` is a derivative artifact containing only learned
+parameters, normalization constants, labels, and abstention thresholds; it
+contains no images, paths, image hashes, embeddings, or training catalog.
+
+The model joins the 124-dimensional forensic descriptor with the
+768-dimensional phase-free spectral descriptor and applies a
+892 -> 128 -> 64 -> 3 GELU MLP. Checkpoint and thresholds were selected on a
+separate calibration partition. The 5,369-image hash-disjoint locked test and
+Mark's public 900-image originals were not used for architecture, checkpoint,
+or threshold selection.
+
+| Evaluation | Class | Recall | Precision |
+| --- | --- | ---: | ---: |
+| Locked internal test (5,369 images) | OpenAI | 60.4% | 84.9% |
+| Locked internal test (5,369 images) | Google | 57.6% | 87.9% |
+| Locked internal test (5,369 images) | Unknown | 98.6% | 93.7% |
+| Mark public originals (900 images) | OpenAI | 68.7% | 100.0% |
+| Mark public originals (900 images) | Google | 81.3% | 98.8% |
+| Mark public originals (900 images) | Unknown/FLUX | 99.0% | 66.4% |
+
+A 95% resize reduced Google recall on the public set to 1%, and a JPEG
+quality-75 round trip made every row abstain. This behavior matches the narrow
+claim: the model classifies original-looking source/export pipelines after
+metadata removal. It neither decodes nor detects SynthID, and its `unknown`
+label does not mean that SynthID is absent. The model card and aggregate
+metrics are tracked under
+[`docs/source-classify-hf/`](source-classify-hf/README.md). Runtime integration
+belongs in the library rather than in the model repository.
+
 Krawetz's Gemini-chat TPR critique is a verifier-quality claim, not a
 feature we can ship. [Lead Stories, 2026-07](https://leadstories.com/analysis/2026/07/google-gemini-synthid-detector-confuses-results-within-same-chat.html)
 documented Gemini repeating the first file's SynthID verdict inside a

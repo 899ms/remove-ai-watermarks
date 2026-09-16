@@ -92,7 +92,15 @@ alone does not upload new heads -- bump the pinned Hub revision when a new
 head must reach installed clients. Pin a Hub revision in production so a
 later freeze cannot silently change installed clients.
 
-The workflow can also be started manually with an optional version input.
+The separate `wiltodelta/raiw-source-classify` model is published with
+`.github/workflows/publish-source-classify-hf.yml`. The workflow downloads the
+derivative `source-pipeline-mlp.npz` artifact from the declared GitHub model
+freeze, verifies its SHA-256, and uploads only that file plus the tracked card
+and aggregate metrics under `docs/source-classify-hf/`. The private corpus,
+catalog, paths, hashes, embeddings, and feature caches are outside this flow.
+
+The workflow is manual and requires the model-freeze release tag plus an
+explicit `publish` confirmation.
 
 If a distribution job fails because a repository or Hugging Face credential is
 invalid, rotate the corresponding GitHub secret and rerun the failed job. A
