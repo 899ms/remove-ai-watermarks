@@ -30,6 +30,7 @@ _ALTERNATE_SIZE = {
     "liblib_pill": (960, 1280),
     "microsoft": (1280, 960),
     "generic_ai_label": (1280, 960),
+    "openart": (1280, 960),
     "jimeng_pill": (960, 1280),
 }
 
