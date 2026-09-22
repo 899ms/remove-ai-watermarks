@@ -113,18 +113,22 @@ class TestGeminiEngine:
 # ── Removal: localize -> fill ───────────────────────────────────────
 
 
-def _composite_sparkle(engine, bg_value: int = 160, size: int = 1400):
-    """Composite the captured sparkle at the configured position on a textured
-    mid-tone image (texture so the filled footprint no longer NCC-matches the
-    template). Returns ``(watermarked_uint8, (x, y, w, h))``."""
-    yy, xx = np.mgrid[0:size, 0:size].astype(np.float32)
-    base = bg_value + 18 * np.sin(xx / 40.0) + 14 * np.cos(yy / 55.0)
-    img = np.clip(np.stack([base, base * 0.97, base * 1.03], axis=-1), 0, 255)
+def _composite_sparkle(engine, bg_value: int = 160, size: int = 1400, *, alpha_scale: float = 1.0, background=None):
+    """Composite the captured sparkle at the configured position. Defaults to a
+    textured mid-tone image (texture so the filled footprint no longer NCC-matches
+    the template); pass ``background`` to blend onto an arbitrary image instead
+    (e.g. photographic noise). Returns ``(watermarked_uint8, (x, y, w, h))``."""
+    if background is not None:
+        img = background.astype(np.float32)
+    else:
+        yy, xx = np.mgrid[0:size, 0:size].astype(np.float32)
+        base = bg_value + 18 * np.sin(xx / 40.0) + 14 * np.cos(yy / 55.0)
+        img = np.clip(np.stack([base, base * 0.97, base * 1.03], axis=-1), 0, 255)
     config = get_watermark_config(size, size)
     x, y = config.get_position(size, size)
     alpha = engine.get_interpolated_alpha(config.logo_size)
     ah, aw = alpha.shape[:2]
-    a = alpha[:, :, None]
+    a = np.clip(alpha * alpha_scale, 0.0, 1.0)[:, :, None]
     roi = img[y : y + ah, x : x + aw]
     img[y : y + ah, x : x + aw] = a * 255.0 + (1.0 - a) * roi
     return np.clip(img, 0, 255).astype(np.uint8), (x, y, aw, ah)
@@ -336,6 +340,74 @@ class TestSparkleFalsePositiveGate:
         assert det.gradient_score < self.engine._SPARKLE_FP_GRAD
         assert det.confidence < 0.5
         assert not det.detected
+
+
+class TestDecorativeGlyphFalsePositive:
+    """Incident 2026-08-27, documented in full in ``docs/module-internals.md``
+    (Gemini sparkle section): a decorative glyph in stylized typography clears the
+    FP gate the same way a genuine weak sparkle does, and no computed signal
+    (margin, gradient, saturation) currently separates the two -- see the
+    counter-example below. This is pinned as a KNOWN, unresolved false-positive
+    class rather than silently "fixed" with an untested threshold nudge.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _setup_engine(self):
+        self.engine = GeminiEngine()
+
+    def _decorative_glyph_scene(self, size: int = 1200) -> np.ndarray:
+        img = np.full((size, size, 3), 25, dtype=np.float32)
+        config = get_watermark_config(size, size)
+        x, y = config.get_position(size, size)
+        s = config.logo_size
+        cx, cy = x + s // 2, y + s // 2
+        # A neon-glow letterform stroke passing close to the glyph, as in the
+        # reported book-cover title.
+        cv2.ellipse(img, (cx, cy), (35, 60), 20, 0, 360, (60, 220, 60), thickness=14)
+        img = cv2.GaussianBlur(img, (0, 0), 3)
+        # A sharp four-point diamond/glint accent: same silhouette family as the
+        # engine's own sparkle template, bright near-white core.
+        canvas = np.zeros((size, size), dtype=np.float32)
+        outer, inner = 18.0, 18.0 * 0.28
+        points = []
+        for i in range(8):
+            angle = np.pi / 2 * (i // 2) + (0 if i % 2 == 0 else np.pi / 4)
+            radius = outer if i % 2 == 0 else inner
+            points.append((cx + radius * np.cos(angle), cy + radius * np.sin(angle)))
+        hull = cv2.convexHull(np.array(points, dtype=np.int32))
+        cv2.fillConvexPoly(canvas, hull, 1.0)
+        canvas = cv2.GaussianBlur(canvas, (0, 0), 1.5)
+        alpha = np.clip(canvas, 0.0, 1.0)[:, :, None]
+        img = alpha * 255.0 + (1.0 - alpha) * img
+        return np.clip(img, 0, 255).astype(np.uint8)
+
+    def test_decorative_glyph_scores_just_under_the_fp_gate(self):
+        """Pins the confirmed incident signature: a borderline score that the FP
+        gate is not currently able to demote. If this starts failing because the
+        score moved, re-derive the fixture rather than loosening the assertion --
+        the incident value was 0.64."""
+        image = self._decorative_glyph_scene()
+        det = self.engine.detect_watermark(image)
+        assert 0.55 <= det.confidence < self.engine._SPARKLE_FP_CONF
+        assert det.detected  # confirmed false positive: not demoted by the gate
+
+    def test_naive_tightening_would_also_reject_a_genuine_weak_sparkle(self):
+        """Counter-example blocking a naive fix: a genuine weak Gemini sparkle
+        composited over noisy, textured (photographic) content lands in the same
+        confidence band with the same clean-margin, clean-gradient, near-white-core
+        signature as the decorative glyph above. Any tightening that demotes the
+        glyph fixture must not demote this one too without a real precision/recall
+        measurement backing it (see the class docstring and ``docs/module-internals.md``).
+        """
+        size = 1400
+        rng = np.random.default_rng(1)
+        noise = rng.normal(140, 75, (size, size, 3)).astype(np.float32)
+        noise = cv2.GaussianBlur(noise, (0, 0), 1.2)
+        image, _ = _composite_sparkle(self.engine, size=size, alpha_scale=0.7, background=noise)
+
+        det = self.engine.detect_watermark(image)
+        assert 0.55 <= det.confidence < self.engine._SPARKLE_FP_CONF
+        assert det.detected  # a real (weak) sparkle correctly kept, not demoted
 
 
 class TestCornerPromotion:

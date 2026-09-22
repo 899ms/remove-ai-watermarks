@@ -287,6 +287,18 @@ class GeminiEngine:
         low_margin = margin is not None and margin < self._SPARKLE_FP_MARGIN
         low_gradient = candidate.gradient < self._SPARKLE_FP_GRAD
         if not low_margin and not low_gradient:
+            # A bright core AND a sharp shape match clear the gate without further
+            # scrutiny -- including for a decorative sparkle-shaped glyph, not just a
+            # genuine sparkle. See "Gemini sparkle" in docs/module-internals.md
+            # (incident 2026-08-27) for why margin/gradient/saturation can't tell
+            # them apart, and TestDecorativeGlyphFalsePositive for the regression.
+            # Logged so a future fix can be calibrated against real occurrences.
+            logger.debug(
+                "Sparkle candidate cleared FP gate without scrutiny: confidence=%.3f, margin=%s, gradient=%.3f",
+                confidence,
+                margin,
+                candidate.gradient,
+            )
             return confidence
         saturation = self._core_saturation(image, alpha, position)
         neutral_core = not low_margin and saturation is not None and saturation <= self._SPARKLE_WHITE_SAT

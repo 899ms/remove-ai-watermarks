@@ -1410,9 +1410,31 @@ shared fill backend.
 `detect_sparkle_confidence` uses a process-wide shared engine because its loaded
 assets and template ladder are immutable.
 
+A decorative sparkle/glint/star glyph in stylized typography -- a bright,
+near-white four-point accent, the same silhouette family the engine's own
+template captures -- is a known, unresolved false-positive class. Incident
+2026-08-27 (raiw-app, Spaces uid 7e01ef8cb99949bba14ab4607a66ae06): a book-cover
+title's decorative diamond accent inside a neon-glow letterform scored 0.64, just
+under `_SPARKLE_FP_CONF`, and the removal step painted a permanent smudge over
+the artwork. Investigation (margin, gradient, saturation, and a prototyped local
+surrounding-edge-density check) found no signal that separates this class from a
+genuine weak Gemini sparkle over a noisy/textured photo background -- a
+synthetic counter-example lands in the same confidence band with the same
+clean-margin, clean-gradient, near-white-core signature that the
+`_SPARKLE_KEEP_CONF` rescue exists to protect (see
+`test_bright_white_blurred_sparkle_rescued`). Tightening any of those signals to
+exclude the glyph excludes the legitimate case too. Closing this gap needs a
+real labeled corpus of decorative-glyph occurrences, the way
+`watermark_registry.GEMINI_SPARKLE_TRUST_CONF` was calibrated against 954 Google-
+metadata uploads, not another synthetic guess. `_apply_false_positive_gate` logs
+`DEBUG` on the exact bypass path this incident hit, to build that corpus from
+production occurrences.
+
 Regression coverage:
 
-- [`test_gemini_engine.py`](../tests/test_gemini_engine.py)
+- [`test_gemini_engine.py`](../tests/test_gemini_engine.py), including
+  `TestDecorativeGlyphFalsePositive` pinning the confirmed false positive and its
+  blocking counter-example.
 
 ### Text mark engines
 
