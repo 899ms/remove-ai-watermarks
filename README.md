@@ -369,6 +369,10 @@ Visible mark support includes:
   and RunningHub labels;
 - one calibrated Microsoft top-right white AI-badge variant;
 - one calibrated Samsung Galaxy AI label variant;
+- a generic brand-less bottom-right `AI生成` fallback for OS/gallery-level
+  AI-edit stamps that carry no vendor wordmark of their own (vivo and Xiaomi
+  Gallery confirmed); synthetic-only calibration, weaker evidence than the
+  vendor-tuned detectors above;
 - the OpenArt wordmark, placed at the frame center rather than a corner;
   uncalibrated (one confirmed real case, no captured corpus).
 

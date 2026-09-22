@@ -1455,6 +1455,7 @@ be represented by the shared base:
 - [`baidu_engine.py`](../src/remove_ai_watermarks/baidu_engine.py)
 - [`liblib_engine.py`](../src/remove_ai_watermarks/liblib_engine.py)
 - [`microsoft_engine.py`](../src/remove_ai_watermarks/microsoft_engine.py)
+- [`generic_ai_label_engine.py`](../src/remove_ai_watermarks/generic_ai_label_engine.py)
 
 Qwen is the one image registry row that currently covers two layout families.
 The shared text engine handles `千问AI生成`; `QwenEngine` also scans a square
@@ -1602,6 +1603,60 @@ Yuanbao uses the polarity-independent `contrast` front end because its standard
 two-line mark can be light on dark scenes or dark on light scenes. Its detector
 and footprint both use the same best-match box. The separate one-line overlay
 variant is not covered.
+
+#### Generic bare "AI生成" label
+
+Registered 2026-09-21 for a confirmed production miss: a bottom-right "AI生成"
+text watermark with no brand wordmark in front of it was left completely
+unremoved because none of the brand-tuned detectors above match a bare,
+brand-less corner stamp -- `identify` found only the TC260 metadata label, with
+nothing for `suggested_mode=visible` to localize. No customer image bytes exist
+for that case in any repository; this engine is built from research plus
+synthetic fixtures.
+
+Research found the bare wording is not tied to one dominant generator. vivo's
+own support documentation confirms its Gallery app stamps a bare "AI生成"
+watermark after AI消除/AI扩图/大片模式 editing (togglable under Album Settings),
+and independent reporting documents the same bare watermark on Xiaomi Gallery's
+AI-edit output. Community reporting suggests Samsung's China-locale Galaxy AI
+tools render "AI生成" too, distinct from the Italian string the `samsung` engine
+targets. No independent confirmation of OPPO/Huawei's exact wording was found.
+Because the label is a compliance stamp mandated by GB 45438-2025 rather than a
+brand mark, several OEM gallery apps plausibly share the same wording with only
+styling differences -- which is why this is one generic fallback rather than
+another per-OEM tuned config.
+
+Unlike a captured brand mark, there is no vendor screenshot to solve an alpha
+map from: the mark has no logo element, only literal text, so it shares
+`scripts/render_vendor_silhouettes.py` -- the same capture-less font-rendering
+pipeline that already produces Qwen/Baidu/Kling/Yuanbao's own text-only
+silhouettes -- which renders "AI生成" directly (white on black, already the
+alpha map) and crops to the glyph body, following `visible_alpha_solve.py`'s
+asset contract (a grayscale PNG under `assets/`) so it plugs into the same
+`TextMarkConfig`/`TextMarkEngine` machinery as every captured mark.
+
+Every brand-specific rival mark in this family literally contains the
+substring "AI生成" in its own glyphs (Doubao, Qwen, Baidu, Kling, Yuanbao --
+Jimeng's "★ 即梦AI" does not and is excluded), so this generic template is at
+real risk of firing a second time on an already-attributed mark. At this
+asset's glyph shape the usual 0.10 `rival_margin` already separates it from
+Qwen's own binarized glyph blob once the absolute NCC gate clears 0.45, so
+`generic_ai_label_engine.py` keeps the shared default rather than widening it
+per mark.
+
+CALIBRATION IS SYNTHETIC ONLY. `scripts/calibrate_generic_ai_label.py` sweeps
+the gate and rival margin over 36 positives (the rendered glyph composited onto
+generated backgrounds at 4 sizes, 3 scale rungs, 3 opacities), 40 generated
+clean/textured negatives, and 8 rival marks' own committed gallery examples. At
+gate 0.45 or 0.50 / the default 0.10 margin the sweep reads the same 67% recall,
+100% precision, zero rival cross-fires; a lower 0.35-0.40 gate reaches the same
+67% recall but admits one Qwen cross-fire. 0.50 is the shipped choice: it costs
+nothing on this corpus and clears a faint inpainting residual the library's own
+removal leaves behind, which otherwise re-fires detection at 0.45. No real
+"AI生成"-generator screenshot was available to validate either number against
+actual vendor output -- treat this
+detector as weaker evidence than the brand-tuned engines above until it is
+recalibrated on real captures.
 
 #### OpenArt wordmark
 

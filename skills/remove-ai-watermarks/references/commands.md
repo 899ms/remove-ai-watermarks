@@ -22,12 +22,14 @@ remove-ai-watermarks visible image.png --keep-metadata -o clean.png
 
 Image mark keys: `gemini`, `doubao`, `jimeng`, `qwen`, `kling`, `yuanbao`,
 `samsung`, `runninghub`, `baidu`, `liblib`, `liblib_pill`, `microsoft`,
-`openart`, `jimeng_pill`. Default
+`generic_ai_label`, `openart`, `jimeng_pill`. Default
 `--mark auto` removes every selected match. `microsoft` is the top-right AI
 badge, separate from the invisible InvisMark watermark on the same vendor's
 images. `jimeng_pill` is a weak detector and needs corroboration. The compact
 `liblib_pill` likewise requires LiblibAI metadata or the bottom-center wordmark
-(since CLI 0.39.0). `openart` sits
+(since CLI 0.39.0). `generic_ai_label` is a brand-less bare "AI生成" fallback for
+OS/gallery-level AI-edit stamps with no vendor wordmark; synthetic-only
+calibration, weaker evidence than the vendor-tuned marks above. `openart` sits
 in the FRAME CENTER, not a corner, and is UNCALIBRATED (one confirmed real
 case, no captured corpus) -- see `openart_engine.py`'s module docstring.
 

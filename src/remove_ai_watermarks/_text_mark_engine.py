@@ -242,6 +242,10 @@ _RIVAL_MODULES = {
     "jimeng_alpha.png": "remove_ai_watermarks.jimeng_engine",
     "qwen_alpha.png": "remove_ai_watermarks.qwen_engine",
     "samsung_alpha.png": "remove_ai_watermarks.samsung_engine",
+    "baidu_alpha.png": "remove_ai_watermarks.baidu_engine",
+    "kling_alpha.png": "remove_ai_watermarks.kling_engine",
+    "yuanbao_alpha.png": "remove_ai_watermarks.yuanbao_engine",
+    "generic_ai_label_alpha.png": "remove_ai_watermarks.generic_ai_label_engine",
 }
 
 

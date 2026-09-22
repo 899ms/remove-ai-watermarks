@@ -32,6 +32,10 @@ _CANDIDATE_ASSETS = _ROOT / "scripts" / "assets" / "visible-mark-candidates"
 _FONT = "/System/Library/Fonts/STHeiti Medium.ttc"
 
 MARKS = {
+    # Brand-less TC260 fallback (no vendor wordmark exists to tune against -- see
+    # generic_ai_label_engine.py's module docstring for the vivo/Xiaomi/Samsung
+    # evidence). Bare glyph, no prefix, unlike every other row below.
+    "generic_ai_label_alpha.png": "AI生成",
     "qwen_alpha.png": "千问AI生成",
     "xinghui_alpha.png": "星绘AI生成",
     # Yuanbao's stamp is a TWO-LINE block (元宝 over AI生成), left-aligned, tightly

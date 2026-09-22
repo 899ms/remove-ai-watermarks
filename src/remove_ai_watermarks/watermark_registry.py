@@ -31,6 +31,8 @@ Entries:
   - ``liblib`` -- LiblibAI "LiblibAI" wordmark, bottom-center.
   - ``liblib_pill`` -- LiblibAI compact "AI生成" pill, top-left.
   - ``microsoft`` -- one measured Microsoft white AI-badge variant, top-right.
+  - ``generic_ai_label`` -- brand-less bare "AI生成" TC260 label (no vendor wordmark),
+    bottom-right; the fallback for a compliance stamp not tied to any tuned mark above.
   - ``openart`` -- OpenArt "OpenArt" wordmark (bowtie/infinity icon + brand name),
     frame-center; UNCALIBRATED (one confirmed real case, no captured corpus), see
     ``openart_engine.py``.
@@ -453,6 +455,7 @@ _ENGINE_CLASS: dict[str, tuple[str, str]] = {
     "liblib": ("liblib_engine", "LibLibEngine"),
     "liblib_pill": ("liblib_engine", "LibLibPillEngine"),
     "microsoft": ("microsoft_engine", "MicrosoftEngine"),
+    "generic_ai_label": ("generic_ai_label_engine", "GenericAiLabelEngine"),
     "openart": ("openart_engine", "OpenArtEngine"),
 }
 
@@ -789,6 +792,27 @@ _REGISTRY: tuple[KnownMark, ...] = (
         provenance_signals=(),
         platform="Microsoft (visible top-right AI badge detected)",
         provenance_platform_tokens=("microsoft",),
+    ),
+    # Brand-less fallback: a bare "AI生成" TC260 label with no vendor wordmark in
+    # front of it (OS/gallery-level AI-edit compliance stamps -- vivo and Xiaomi
+    # Gallery confirmed, see generic_ai_label_engine's module docstring for sources).
+    # label_regime=None and provenance_signals=(): unlike every other `_text_mark`
+    # row, this mark can NEVER declare a tc260_producer_code (there is no one
+    # producer to name), and test_api.py's TestVisibleProvenance invariant requires
+    # every "tc260"-regime mark to declare one except the two companion pills that
+    # inherit a sibling's identity. This mark is neither -- it genuinely cannot be
+    # attributed -- so it opts out of the "tc260" regime tag the way Samsung and
+    # Microsoft already do for their own non-attributable device stamps, and out of
+    # "aigc" provenance relaxation (mirrors provenance_ncc_factor=1.0 in the engine:
+    # never relaxed).
+    _text_mark(
+        "generic_ai_label",
+        "Generic bare AI生成 text (no vendor wordmark)",
+        "bottom-right",
+        platform="Generic AI-generated content label (bare 'AI生成' mark; specific vendor undetermined)",
+        manufacturer="unknown",
+        label_regime=None,
+        provenance_signals=(),
     ),
     # Frame-center, not a corner -- see the "cc" corner and openart_engine.py's module
     # docstring for the single confirmed carrier and why this row is UNCALIBRATED.

@@ -27,6 +27,7 @@ class TestCatalog:
             "liblib",
             "liblib_pill",
             "microsoft",
+            "generic_ai_label",
             "openart",
             "jimeng_pill",
         ]
@@ -120,6 +121,7 @@ class TestScan:
             "liblib",
             "liblib_pill",
             "microsoft",
+            "generic_ai_label",
             "openart",
             "jimeng_pill",
         }
