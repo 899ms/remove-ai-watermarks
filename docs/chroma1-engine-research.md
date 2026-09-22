@@ -506,7 +506,8 @@ This invalidates both the 0.09 explicit Chroma floor and the OpenAI auto route.
 For explicit Chroma, the face-bearing cohort rule gives
 `0.1375 + (0.1375 - 0.075) = 0.20`; that candidate was subsequently verified
 clean three times on both holdout carriers. `auto` uses `qwen-zimage` for OpenAI
-at 0.07675; Chroma remains the Microsoft route.
+at its separately calibrated floor; Chroma remains the Microsoft route. The
+then-current Qwen floor was 0.07675, superseded by the source-fresh expansion below.
 
 ## OpenAI zero-face holdout: the content split does not survive real carriers (2026-09-08)
 
@@ -547,6 +548,21 @@ zero-face OpenAI content spanned 0.015; the real carriers span 0.065, four times
 wider. A narrow fixture spread produces a small worst-clean-plus-one-spread margin
 and a false impression of homogeneity, and it was that impression - not any
 measurement - that made a face split look justified here twice.
+
+## Qwen OpenAI source-fresh expansion (2026-09-21)
+
+The same under-sampling defect existed in Qwen's OpenAI floor: two sources first
+cleared at 0.06225 and 0.0695, so their 0.00725 spread produced the shipped 0.07675
+margin. A later production miss made that n=2 estimate untenable.
+
+Six fresh `gpt-image-2` API generations - three YuNet-positive and three
+YuNet-zero-face - all retained SynthID in decoded-RGB-identical metadata-stripped
+controls. Their complete Qwen seed-0 ladders expanded the n=8 first-clean range to
+0.03125-0.09375, so the standard rule gives
+`0.09375 + (0.09375 - 0.03125) = 0.15625`. The face and no-face groups each span
+0.05 internally while their worst boundaries differ by only 0.0125, so OpenAI
+keeps one flat Qwen floor. The per-source table and exact protocol are recorded in
+[`Measured provider boundaries for qwen-zimage`](module-internals.md#measured-provider-boundaries-for-qwen-zimage).
 
 ## Content-balanced engine selection check (2026-08-31)
 

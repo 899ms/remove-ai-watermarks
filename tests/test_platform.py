@@ -238,6 +238,7 @@ class TestResolveStrength:
         assert resolve_strength(None, "openai", "qwen-zimage", size=(2000, 1850)) == pytest.approx(
             QWEN_ZIMAGE_OPENAI_STRENGTH
         )
+        assert pytest.approx(0.15625) == QWEN_ZIMAGE_OPENAI_STRENGTH
         assert resolve_strength(None, None, "qwen-zimage", size=(600, 500)) == pytest.approx(0.084)
         assert resolve_strength(None, "google", "qwen-zimage", size=(600, 500)) == QWEN_ZIMAGE_GOOGLE_STRENGTH
         assert QWEN_ZIMAGE_GOOGLE_STRENGTH == 0.35
@@ -249,7 +250,10 @@ class TestResolveStrength:
         with pytest.raises(ValueError, match="size is required"):
             resolve_strength(None, "openai", "qwen-zimage")
 
-    @pytest.mark.parametrize(("vendor", "expected"), [("microsoft", 0.15), ("openai", 0.07675), ("meta", 0.1)])
+    @pytest.mark.parametrize(
+        ("vendor", "expected"),
+        [("microsoft", 0.15), ("openai", QWEN_ZIMAGE_OPENAI_STRENGTH), ("meta", 0.1)],
+    )
     def test_qwen_zimage_measured_vendors_use_flat_cross_source_margins(self, vendor, expected):
         """Measured providers must not fall below their operating points on small files."""
         assert resolve_strength(None, vendor, "qwen-zimage", size=(600, 500)) == pytest.approx(expected)

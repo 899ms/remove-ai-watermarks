@@ -268,9 +268,11 @@ The profiles resolve an unset strength differently, because different things
 were measured for each.
 
 `qwen-zimage` reads unknown content from the resolution-adaptive denoise curve.
-Measured provider cohorts instead take flat operating points: OpenAI `0.07675`,
+Measured provider cohorts instead take flat operating points: OpenAI `0.15625`,
 Google `0.35`, and Microsoft InvisMark `0.15`. OpenAI and Microsoft add one full
-observed cross-source boundary spread to the worst clean source; Microsoft's three
+observed cross-source boundary spread to the worst clean source. OpenAI's eight-source
+cohort spans first-clean boundaries from `0.03125` to `0.09375`, giving `0.15625`;
+the face and no-face halves each span `0.05`, so there is no face split. Microsoft's three
 first-clean boundaries were `0.04125`, `0.055`, and `0.095`, giving `0.14875` before
 rounding up. Google's source-fresh candidate cleared three independent CJK carrier
 types after the original content matrix found CJK and Cyrillic to be the limiting
@@ -293,8 +295,8 @@ established for that stage.
 
 - OpenAI: `0.20`. Two withheld carriers expanded the Chroma first-clean boundary
   to `0.10625` and `0.1375`; adding the face-bearing cohort spread to the worst
-  boundary gives `0.20`, verified clean three times on both, while qwen-zimage
-  cleared both at its existing `0.07675` operating point;
+  boundary gives `0.20`, verified clean three times on both. Qwen cleared those
+  two at its then-current `0.07675`; its later n=8 calibration set `0.15625`;
 - Microsoft InvisMark: `0.125` (below qwen's `0.15`);
 - Google: `0.50`. A source-fresh CJK carrier remained detected at `0.40` and
   cleared at `0.50`; that candidate then cleared independent busy-scene,

@@ -100,9 +100,15 @@ SDXL_ZIMAGE_UNKNOWN_STRENGTH = SDXL_ZIMAGE_GEMINI_STRENGTH
 # carriers, so 0.35 is the content-agnostic operating floor.
 QWEN_ZIMAGE_GOOGLE_STRENGTH = 0.35
 
-# The two OpenAI sources first cleared at 0.06225 and 0.0695. Add one full observed
-# cross-source spread (0.00725) to the worst clean boundary: 0.0695 + 0.00725.
-QWEN_ZIMAGE_OPENAI_STRENGTH = 0.07675
+# OpenAI source-fresh expansion (official Content Provenance API, 2026-09-21):
+# six current gpt-image-2 carriers first cleared at 0.04375 / 0.09375 / 0.0625
+# (YuNet faces) and 0.04375 / 0.03125 / 0.08125 (no faces), each bracketed to
+# 0.00625 after an RGB-identical metadata-stripped positive control. Together
+# with the earlier 0.06225 / 0.0695 sources this is n=8. Face and no-face ranges
+# both span 0.05, while their worst boundaries differ by only 0.0125, so there
+# is no content split. Add one full observed cross-source spread to the worst
+# clean boundary: 0.09375 + (0.09375 - 0.03125) = 0.15625.
+QWEN_ZIMAGE_OPENAI_STRENGTH = 0.15625
 
 # Microsoft's public detector (https://ai.azure.com/nextgen/validate) returned
 # Inconclusive rather than an API-level watermark-negative verdict. Three valid
@@ -151,8 +157,9 @@ _SDXL_ZIMAGE_STRENGTH_BY_VENDOR: dict[str, float] = {
 #   0.1375. The face-bearing cohort rule adds its observed spread to the worst
 #   boundary: 0.1375 + (0.1375 - 0.075) = 0.20. Explicit Chroma uses that
 #   operating point, verified clean three times on both withheld carriers.
-#   Qwen cleared both withheld carriers at its existing 0.07675 operating point,
-#   so auto routes OpenAI to Qwen rather than paying Chroma's higher fidelity cost.
+#   Qwen cleared both withheld carriers at its then-existing 0.07675 operating
+#   point; the later n=8 Qwen expansion raised its floor to 0.15625 without
+#   changing the route, which still avoids Chroma's higher fidelity cost.
 #   Three further withheld carriers, all zero-face by the same YuNet detector the
 #   adaptive arms gate on, first cleared at 0.045 / 0.06 / 0.11 -> a zero-face
 #   operating point of 0.11 + (0.11 - 0.045) = 0.175, which 0.20 already covers.

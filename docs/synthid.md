@@ -783,11 +783,14 @@ old OpenAI C2PA remains an origin signal without becoming a SynthID claim.
 OpenAI provenance plus SynthID, `has_invisible_target` returned true, and the
 automatic strength cohort resolved to OpenAI for both files. After C2PA was
 removed without changing decoded pixels, the official OpenAI Content Provenance
-API still returned SynthID `detected` for both sources. The complete shipped
+API still returned SynthID `detected` for both sources. The complete then-shipped
 `qwen-zimage` profile at strength 0.07675 and seed 0 then produced two outputs
 for which the same metadata-independent API returned SynthID `not_detected`.
 This is one controlled source per model and proves the current routing and
-operating point on those two sources; it is not a provider-wide removal rate.
+then-current operating point on those two sources; it is not a provider-wide
+removal rate. A six-source `gpt-image-2` expansion on 2026-09-21 subsequently
+expanded the Qwen first-clean range to 0.03125-0.09375 and raised the flat OpenAI
+floor to 0.15625 by the established full-spread rule.
 
 ### 4.3 Other vendors
 

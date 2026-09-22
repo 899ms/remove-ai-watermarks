@@ -2132,9 +2132,10 @@ first-clean is still 0.10; botanical seeds 1 and 2 stay DETECTED at
 that rung, which is the margin the 0.17 floor already holds. A later OpenAI
 holdout invalidated the flat 0.09 conclusion: two carriers first cleared under
 Chroma at 0.10625 and 0.1375, while qwen-zimage cleared both at its existing
-0.07675 operating point. Explicit Chroma now uses the spread-derived 0.20,
-verified clean three times on both holdout carriers, and `auto` routes
-OpenAI to qwen-zimage.
+0.07675 operating point. A later source-fresh n=8 Qwen calibration raised its
+OpenAI floor to 0.15625; that does not change the engine decision. Explicit
+Chroma uses the spread-derived 0.20, verified clean three times on both holdout
+carriers, and `auto` routes OpenAI to qwen-zimage.
 
 A separate content-balanced check on 2026-08-31 tested the exact production
 OpenAI and Meta floors over 19 prompt-matched image strata per provider. Each
@@ -2432,12 +2433,34 @@ A source-fresh GPT Image 2.5 check on 2026-09-15 exercised the complete shipped
 profile rather than only a strength sweep. One 1024 x 1024 API generation from
 Flare and one from Sunburst both validated as current OpenAI C2PA, routed to the
 flat OpenAI strength, and remained OpenAI SynthID-positive after pixel-identical
-metadata removal. The complete `qwen-zimage` profile at 0.07675, seed 0, cleared
+metadata removal. The complete `qwen-zimage` profile at the then-current
+0.07675, seed 0, cleared
 both in the official OpenAI Content Provenance API. The Flare output measured
 37.48 dB PSNR / 0.9329 SSIM and the Sunburst output 37.01 dB / 0.9179 against
 their sources. Those fidelity numbers describe two neutral studio-photo
 carriers, not a content-wide quality estimate, and the source-positive/output-negative
 oracle pairs do not replace the wider OpenAI calibration that set the floor.
+
+The source-fresh 2026-09-21 expansion supplied that wider calibration. Six
+independent `gpt-image-2` API generations - three YuNet-positive and three
+YuNet-zero-face - each retained SynthID after metadata stripping with decoded RGB
+unchanged. Per-file Qwen ladders, seed 0, were bracketed to 0.00625 against the
+official API:
+
+| content | detected through | first clean |
+|---|---:|---:|
+| 1 face, studio portrait | 0.0375 | 0.04375 |
+| 7 faces, group portrait | 0.0875 | 0.09375 |
+| 3 faces plus text | 0.05625 | 0.0625 |
+| zero-face architecture | 0.0375 | 0.04375 |
+| zero-face typography | 0.025 | 0.03125 |
+| zero-face watercolor | 0.075 | 0.08125 |
+
+Together with the earlier first-cleans at 0.06225 and 0.0695, the cohort is n=8.
+The observed extrema are 0.03125 and 0.09375, so the established rule gives
+`0.09375 + (0.09375 - 0.03125) = 0.15625`. Both face strata span 0.05 internally,
+while their worst boundaries differ by 0.0125; face presence therefore does not
+support separate floors.
 
 | oracle | fixture size | detected at | clean from |
 |---|---|---|---|

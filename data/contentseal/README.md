@@ -64,7 +64,7 @@ the calibration rows below is the race-free variant.
 ## Strength floor calibration (qwen-zimage, seed 0)
 
 The library resolves strength per vendor with measured floors (OpenAI
-0.07675 / Google 0.27 / Microsoft InvisMark 0.15 in
+0.15625 / Google 0.35 / Microsoft InvisMark 0.15 in
 `_internal/watermark_profiles.py`). Meta Content Seal had no floor before this
 calibration; these rows measure one by the same methodology: independent
 generations, each one's first-clean boundary, floor = worst boundary plus the

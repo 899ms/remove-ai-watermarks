@@ -1069,6 +1069,7 @@ def test_chroma_zimage_strength_uses_measured_flat_floors():
         CHROMA_ZIMAGE_MICROSOFT_STRENGTH,
         CHROMA_ZIMAGE_OPENAI_STRENGTH,
         CHROMA_ZIMAGE_UNKNOWN_STRENGTH,
+        QWEN_ZIMAGE_OPENAI_STRENGTH,
         normalize_profile,
         resolve_strength,
     )
@@ -1087,7 +1088,9 @@ def test_chroma_zimage_strength_uses_measured_flat_floors():
     assert CHROMA_ZIMAGE_UNKNOWN_STRENGTH == CHROMA_ZIMAGE_GOOGLE_STRENGTH
     # An explicit strength still wins, and other profiles are untouched.
     assert resolve_strength(0.2, "google", "chroma-zimage") == pytest.approx(0.2)
-    assert resolve_strength(None, "openai", "qwen-zimage", size=(2000, 1850)) == pytest.approx(0.07675)
+    assert resolve_strength(None, "openai", "qwen-zimage", size=(2000, 1850)) == pytest.approx(
+        QWEN_ZIMAGE_OPENAI_STRENGTH
+    )
 
 
 def test_chroma_zimage_inherits_the_shared_stages_and_only_swaps_the_global():
@@ -1331,15 +1334,16 @@ def test_auto_profile_routes_to_the_measured_engine_per_vendor():
 
 def test_auto_strength_uses_the_effective_vendor_profile():
     """Displayed and executed auto strengths must use the same engine policy."""
-    from remove_ai_watermarks._internal.watermark_profiles import resolve_strength
+    from remove_ai_watermarks._internal.watermark_profiles import QWEN_ZIMAGE_OPENAI_STRENGTH, resolve_strength
 
     assert resolve_strength(None, "google", "auto", size=(64, 48)) == pytest.approx(0.50)
     assert resolve_strength(None, "microsoft", "auto", size=(64, 48)) == pytest.approx(0.125)
-    assert resolve_strength(None, "openai", "auto", size=(64, 48)) == pytest.approx(0.07675)
+    assert resolve_strength(None, "openai", "auto", size=(64, 48)) == pytest.approx(QWEN_ZIMAGE_OPENAI_STRENGTH)
 
 
 def test_auto_profile_strength_uses_the_resolved_engine_floors(tmp_path, monkeypatch):
-    """Auto resolves OpenAI to Qwen and uses its oracle-verified 0.07675 floor."""
+    """Auto resolves OpenAI to Qwen and uses its oracle-verified floor."""
+    from remove_ai_watermarks._internal.watermark_profiles import QWEN_ZIMAGE_OPENAI_STRENGTH
     from remove_ai_watermarks._internal.watermark_remover import WatermarkRemover
 
     _mock_watermark_runtime_deps(monkeypatch)
@@ -1358,7 +1362,7 @@ def test_auto_profile_strength_uses_the_resolved_engine_floors(tmp_path, monkeyp
 
     assert remover.model_profile == "qwen-zimage"
     _, kwargs = runtime.run.call_args
-    assert kwargs["strength"] == pytest.approx(0.07675)
+    assert kwargs["strength"] == pytest.approx(QWEN_ZIMAGE_OPENAI_STRENGTH)
 
 
 def test_auto_google_switches_to_the_sdxl_floor_and_dtype(tmp_path, monkeypatch):
@@ -1406,6 +1410,7 @@ def test_auto_profile_text_manifest_uses_the_measured_qwen_engine_once(tmp_path,
 
 def test_auto_profile_is_resolved_fresh_for_each_image(tmp_path, monkeypatch):
     """A Google image must not pin the next OpenAI image to SDXL."""
+    from remove_ai_watermarks._internal.watermark_profiles import QWEN_ZIMAGE_OPENAI_STRENGTH
     from remove_ai_watermarks._internal.watermark_remover import WatermarkRemover
 
     _mock_watermark_runtime_deps(monkeypatch)
@@ -1428,4 +1433,4 @@ def test_auto_profile_is_resolved_fresh_for_each_image(tmp_path, monkeypatch):
 
     remover.remove_watermark(source, tmp_path / "openai.png", vendor="openai")
     assert remover.model_profile == "qwen-zimage"
-    assert runtimes[-1].run.call_args.kwargs["strength"] == pytest.approx(0.07675)
+    assert runtimes[-1].run.call_args.kwargs["strength"] == pytest.approx(QWEN_ZIMAGE_OPENAI_STRENGTH)
