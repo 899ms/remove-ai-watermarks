@@ -368,7 +368,9 @@ Visible mark support includes:
   Yuanbao, Baidu, LiblibAI's bottom-center wordmark and compact top-left pill,
   and RunningHub labels;
 - one calibrated Microsoft top-right white AI-badge variant;
-- one calibrated Samsung Galaxy AI label variant.
+- one calibrated Samsung Galaxy AI label variant;
+- the OpenArt wordmark, placed at the frame center rather than a corner;
+  uncalibrated (one confirmed real case, no captured corpus).
 
 Metadata and provenance inspection covers C2PA, EXIF, XMP, IPTC, common
 generator parameters in image and video containers, China TC260 AIGC labels,

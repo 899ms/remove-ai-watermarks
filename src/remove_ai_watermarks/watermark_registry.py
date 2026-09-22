@@ -31,6 +31,9 @@ Entries:
   - ``liblib`` -- LiblibAI "LiblibAI" wordmark, bottom-center.
   - ``liblib_pill`` -- LiblibAI compact "AI生成" pill, top-left.
   - ``microsoft`` -- one measured Microsoft white AI-badge variant, top-right.
+  - ``openart`` -- OpenArt "OpenArt" wordmark (bowtie/infinity icon + brand name),
+    frame-center; UNCALIBRATED (one confirmed real case, no captured corpus), see
+    ``openart_engine.py``.
 """
 
 from __future__ import annotations
@@ -450,6 +453,7 @@ _ENGINE_CLASS: dict[str, tuple[str, str]] = {
     "liblib": ("liblib_engine", "LibLibEngine"),
     "liblib_pill": ("liblib_engine", "LibLibPillEngine"),
     "microsoft": ("microsoft_engine", "MicrosoftEngine"),
+    "openart": ("openart_engine", "OpenArtEngine"),
 }
 
 
@@ -785,6 +789,20 @@ _REGISTRY: tuple[KnownMark, ...] = (
         provenance_signals=(),
         platform="Microsoft (visible top-right AI badge detected)",
         provenance_platform_tokens=("microsoft",),
+    ),
+    # Frame-center, not a corner -- see the "cc" corner and openart_engine.py's module
+    # docstring for the single confirmed carrier and why this row is UNCALIBRATED.
+    # No China TC260 label and no other known metadata signal: label_regime=None,
+    # provenance_signals=() mirror Microsoft's non-attributable-device shape rather
+    # than the TC260 default every other _text_mark row above inherits.
+    _text_mark(
+        "openart",
+        "OpenArt wordmark",
+        "frame-center",
+        platform="OpenArt (visible OpenArt mark detected)",
+        manufacturer="openart",
+        label_regime=None,
+        provenance_signals=(),
     ),
     # Same product as the Jimeng wordmark -- the one pair that cross-relaxes.
     KnownMark(

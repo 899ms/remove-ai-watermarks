@@ -27,6 +27,7 @@ class TestCatalog:
             "liblib",
             "liblib_pill",
             "microsoft",
+            "openart",
             "jimeng_pill",
         ]
 
@@ -49,6 +50,7 @@ class TestCatalog:
         assert by_key["samsung"].location == "bottom-left"
         assert by_key["liblib_pill"].location == "top-left"
         assert by_key["jimeng_pill"].location == "top-left"
+        assert by_key["openart"].location == "frame-center"
 
     def test_get_mark_unknown_raises(self):
         with pytest.raises(KeyError):
@@ -118,6 +120,7 @@ class TestScan:
             "liblib",
             "liblib_pill",
             "microsoft",
+            "openart",
             "jimeng_pill",
         }
 

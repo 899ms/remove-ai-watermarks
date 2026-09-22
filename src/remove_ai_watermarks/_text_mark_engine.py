@@ -89,8 +89,8 @@ class TextMarkConfig:
     name: str  # short label for log lines (e.g. "Doubao")
     asset_name: str  # bundled alpha PNG under assets/ (e.g. "doubao_alpha.png")
     corner: Literal[
-        "br", "bl", "tl", "tr", "bc"
-    ]  # br (Doubao/Jimeng), bl (Samsung), tl (RunningHub), tr (Microsoft), bc (LiblibAI)
+        "br", "bl", "tl", "tr", "bc", "cc"
+    ]  # br (Doubao/Jimeng), bl (Samsung), tl (RunningHub), tr (Microsoft), bc (LiblibAI), cc (OpenArt)
     margin_floor: int  # min margin in px for locate (4 for br marks, 2 for Samsung)
     # locate geometry (fraction of scale_base -- see scale_base())
     width_frac: float
@@ -528,12 +528,17 @@ class TextMarkEngine:
         margin_b = max(c.margin_floor, int(base * c.margin_bottom_frac))
         if c.corner == "br" or c.corner == "tr":
             x = max(0, w - margin_x - wm_w)
-        elif c.corner == "bc":  # bottom-center: horizontally centered, margin_x unused
+        elif c.corner in ("bc", "cc"):  # horizontally centered, margin_x unused
             x = max(0, (w - wm_w) // 2)
         else:
             x = min(margin_x, max(0, w - wm_w))
         # "tl"/"tr" anchor at the top instead: margin_bottom_frac is then the TOP margin.
-        y = min(margin_b, max(0, h - wm_h)) if c.corner in ("tl", "tr") else max(0, h - margin_b - wm_h)
+        if c.corner in ("tl", "tr"):
+            y = min(margin_b, max(0, h - wm_h))
+        elif c.corner == "cc":  # frame-center: vertically centered, margin_bottom_frac unused
+            y = max(0, (h - wm_h) // 2)
+        else:
+            y = max(0, h - margin_b - wm_h)
         wm_w = min(wm_w, w - x)
         wm_h = min(wm_h, h - y)
         return TextMarkLocation(x=x, y=y, w=wm_w, h=wm_h)

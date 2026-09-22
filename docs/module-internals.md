@@ -1603,6 +1603,61 @@ two-line mark can be light on dark scenes or dark on light scenes. Its detector
 and footprint both use the same best-match box. The separate one-line overlay
 variant is not covered.
 
+#### OpenArt wordmark
+
+Registered 2026-09-21 for a confirmed production miss reported through raiw-app:
+a free `visible`-mode run (2026-09-11, 1528x2712 portrait, Spaces uid
+`aefb1e07306f4a7280615a8daea01a39`) left a large, prominent OpenArt wordmark
+(a bowtie/infinity icon followed by "OpenArt" in bold sans-serif, semi-
+transparent white) completely unremoved -- pixel-identical before and after.
+`identify` found nothing at all for that case: no C2PA, EXIF AI tag, or China
+AIGC/TC260 label, so the visible mark is the only known attribution route for
+a bare OpenArt export. The user rated the result 0 ("Didn't work").
+
+**This is the only registered mark placed at the FRAME CENTER rather than a
+corner.** Every other engine in this family anchors to one of the four corners
+or a bottom/top edge midpoint; `_text_mark_engine.py` gained a new `"cc"`
+corner literal (both axes centered) specifically for this row, following the
+same per-vendor-measured-geometry precedent as the existing `"bc"` (LiblibAI)
+and `"tr"`/`"long"`-basis (Microsoft) additions. A frame-center locate box sits
+over far more varied image content than a corner box, which is why its NCC
+gate (0.62) is set well above Doubao/Jimeng's measured 0.45-0.50 rather than
+matching them.
+
+OpenArt (openart.ai) requires an OAuth-authenticated account for image
+generation -- there is no anonymous or API-key access (confirmed via its own
+help center and MCP/CLI docs, 2026-09-21) -- so this repository's tooling
+cannot generate a second real capture to survey placement variance by aspect
+ratio, watermark configurability, or whether a paid tier still embeds C2PA;
+only the one customer-reported case above is confirmed. OpenArt's own pricing
+page lists "Watermark-free" as a paid-plan-only feature, consistent with every
+free-plan output carrying this mark, and its help center separately confirms
+free-plan VIDEO exports carry a removable watermark toggle at download --
+independent evidence that a visible free-tier watermark is real product
+behavior, not one-off.
+
+Unlike every captured brand mark in this file, there is no committed real
+capture to solve an alpha map from (see above -- no account access) and no
+public example image was reconstructed by hand. `scripts/build_openart_alpha.py`
+instead PROCEDURALLY DRAWS a reconstruction of OpenArt's own public brand mark
+(the bowtie icon + wordmark shown on openart.ai's own marketing pages) as a
+grayscale alpha PNG, the same bundled-asset contract every other engine uses.
+
+**CALIBRATION IS PROVISIONAL, NOT MEASURED.** There is no recall/precision
+sweep like Doubao's or the generic-label engine's: no positive corpus exists
+at all beyond the one production case, real or synthetic-composited. The 0.62
+NCC threshold is a conservative guess, not a measured operating point; a quick
+false-fire check against 15 random Gaussian-blurred noise images at plausible
+aspect ratios and sizes found zero false fires, which is reassurance, not
+calibration. Do not cite this mark in any auto-scan precision claim, and do
+not lower its threshold, without a real captured corpus under
+`data/calibration/openart/`.
+
+`openart_engine.py`'s module docstring carries the same caveats in code. Its
+tests (`tests/test_openart_engine.py`) mirror `test_doubao_engine.py`'s
+structure entirely on synthetic composites of the bundled asset -- there is no
+`TestRealSample` analogue.
+
 #### Bare-upload pill arm: measured impossible with the current detector (2026-08-28)
 
 `_keep_pill` never removes a metadata-bare pill, and the question "can a bare arm

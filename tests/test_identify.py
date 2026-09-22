@@ -1212,6 +1212,21 @@ class TestIdentifyVisibleTextMarks:
         assert "Jimeng" in r.platform
         assert any(s.name == "visible_jimeng" for s in r.signals)
 
+    def test_openart_promotes_to_medium(self, tmp_clean_png: Path):
+        """OpenArt has no known TC260/C2PA/EXIF signal (see openart_engine.py's
+        module docstring), so the visible mark is the ONLY route to a platform
+        attribution -- this is the exact production gap the mark closes: a bare
+        OpenArt export previously reported `platform: null` with zero signals."""
+        det = self._detection("openart", "OpenArt wordmark", 0.85)
+        with patch(_SPARKLE_TARGET, return_value=None), patch(_TEXT_MARKS_TARGET, return_value=[det]):
+            r = identify(tmp_clean_png, check_visible=True)
+        assert r.is_ai_generated is True
+        assert r.confidence == "medium"
+        assert r.platform is not None
+        assert "OpenArt" in r.platform
+        signal = next(s for s in r.signals if s.name == "visible_openart")
+        assert signal.confidence == "medium"
+
     def test_check_visible_false_skips_text_marks(self, tmp_clean_png: Path):
         det = self._detection("doubao", "Doubao 豆包AI生成 text", 0.99)
         with patch(_SPARKLE_TARGET, return_value=None), patch(_TEXT_MARKS_TARGET, return_value=[det]) as mock:
