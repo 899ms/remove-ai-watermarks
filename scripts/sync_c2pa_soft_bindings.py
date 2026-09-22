@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import logging
+import os
 import re
 import sys
 from dataclasses import dataclass
@@ -54,7 +55,18 @@ class RegistryRow:
 def _read_bytes(source: str) -> bytes:
     parsed = urlparse(source)
     if parsed.scheme in {"http", "https"}:
-        request = Request(source, headers={"User-Agent": "remove-ai-watermarks-c2pa-registry-sync"})
+        headers = {"User-Agent": "remove-ai-watermarks-c2pa-registry-sync"}
+        # api.github.com rate-limits unauthenticated requests to 60/hour PER SOURCE IP,
+        # which CI runners exhaust fast since many workflows across many repos share
+        # GitHub's runner IP pool -- a 403 "rate limit exceeded" here is that, not an
+        # outage. A GITHUB_TOKEN (Actions injects one into every run; export it as an
+        # env var to reach this process) raises the same endpoint to 5000/hour.
+        # raw.githubusercontent.com is a separate, much higher-limit CDN and does not
+        # need this.
+        token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+        if token and parsed.hostname == "api.github.com":
+            headers["Authorization"] = f"Bearer {token}"
+        request = Request(source, headers=headers)
         with urlopen(request, timeout=30) as response:
             return response.read()
     return Path(source).read_bytes()

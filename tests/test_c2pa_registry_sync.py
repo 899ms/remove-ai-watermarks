@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -112,3 +113,36 @@ def test_packaged_snapshot_preserves_published_resolution_apis():
         f"upstream softbinding-algorithm-list resolution-API set changed: {sorted(with_apis)}; "
         "revisit docs/c2pa-resolution-research.md before regenerating"
     )
+
+
+class TestReadBytesAuth:
+    """api.github.com rate-limits unauthenticated requests to 60/hour PER SOURCE IP,
+    which CI runners exhaust fast since many workflows share GitHub's runner IP pool
+    (observed: --check failing with 403 on every platform in one push). A GITHUB_TOKEN
+    raises that to 5000/hour; these pin that the header is sent to api.github.com when
+    a token is present, withheld when it is not, and never sent to the unrelated raw
+    CDN host even with a token set."""
+
+    def _urlopen_headers(self, source: str) -> dict[str, str]:
+        response = MagicMock()
+        response.__enter__.return_value.read.return_value = b"{}"
+        with patch("scripts.sync_c2pa_soft_bindings.urlopen", return_value=response) as mock_urlopen:
+            sync._read_bytes(source)
+        request = mock_urlopen.call_args[0][0]
+        return dict(request.headers)
+
+    def test_sends_bearer_token_to_github_api(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        headers = self._urlopen_headers("https://api.github.com/repos/example/example/commits")
+        assert headers.get("Authorization") == "Bearer test-token"
+
+    def test_omits_authorization_without_a_token(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+        monkeypatch.delenv("GH_TOKEN", raising=False)
+        headers = self._urlopen_headers("https://api.github.com/repos/example/example/commits")
+        assert "Authorization" not in headers
+
+    def test_never_sends_the_token_to_the_raw_cdn_host(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+        headers = self._urlopen_headers("https://raw.githubusercontent.com/example/example/main/x.json")
+        assert "Authorization" not in headers
