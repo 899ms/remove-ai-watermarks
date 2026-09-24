@@ -22,10 +22,13 @@ supplies only Doubao's tuned :class:`TextMarkConfig` (bottom-right corner,
 
 from __future__ import annotations
 
+import dataclasses
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
+
 from remove_ai_watermarks import _text_mark_engine, image_io
-from remove_ai_watermarks._text_mark_engine import TextMarkConfig, TextMarkDetection, TextMarkEngine
+from remove_ai_watermarks._text_mark_engine import TextMarkConfig, TextMarkDetection, TextMarkEngine, TextMarkScan
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -38,9 +41,12 @@ WM_HEIGHT_FRAC = 0.075
 MARGIN_RIGHT_FRAC = 0.004
 MARGIN_BOTTOM_FRAC = 0.004
 
-# Glyph appearance: a light, low-saturation gray rendered brighter than the local
-# background (white top-hat), so a white-paper document is left untouched.
+# Glyph appearance: a light glyph rendered brighter than the local background
+# (white top-hat). Preserve the original low-saturation front end, which can
+# score better on pale backgrounds than a wider color filter.
 MAX_SATURATION = 55  # max channel spread to count a pixel as "grayish"
+_TINTED_MAX_SATURATION = 100
+_TINTED_CORNER_FRACTION = 0.10
 LOGO_MIN_LUMA = 150  # glyphs are at least this bright in absolute terms
 TOPHAT_DELTA = 12  # glyph must exceed the local background by this many levels
 
@@ -104,6 +110,12 @@ _CONFIG = TextMarkConfig(
     min_gw=8,
 )
 
+# A translucent white mark over yellow/orange imagery can retain enough of the
+# background color to miss the original 55-level filter. Search with a wider
+# filter only when the corner is substantially colorful. Keep already accepted
+# detections and otherwise retain the stronger of the two scans.
+_TINTED_ENGINE = TextMarkEngine(dataclasses.replace(_CONFIG, max_saturation=_TINTED_MAX_SATURATION))
+
 
 def _alpha_template() -> NDArray[Any] | None:
     """The bundled Doubao alpha template (float [0,1]), or None."""
@@ -125,6 +137,21 @@ class DoubaoEngine(TextMarkEngine):
 
     def __init__(self) -> None:
         super().__init__(_CONFIG)
+
+    def _scan(self, image: NDArray[Any] | None) -> TextMarkScan:
+        base = super()._scan(image)
+        if base.loc is None or image is None or (base.score or 0) >= DETECT_NCC_THRESHOLD:
+            return base
+
+        x, y, w, h = base.loc.bbox
+        corner = image_io.to_bgr(image[y : y + h, x : x + w])
+        channel_spread = corner.max(axis=2) - corner.min(axis=2)
+        colored = np.count_nonzero(channel_spread >= _TINTED_MAX_SATURATION)
+        if colored < _TINTED_CORNER_FRACTION * channel_spread.size:
+            return base
+
+        tinted = _TINTED_ENGINE._scan(image)
+        return tinted if (tinted.score or 0) > (base.score or 0) else base
 
     def footprint_mask(
         self,

@@ -48,8 +48,8 @@ pill detector; the generic pill shape does not attribute LiblibAI on its own.
 
 | Key | Mark | Motion | Important limit |
 | --- | --- | --- | --- |
-| `sora` | Sora 2 mascot and wordmark | Moves among frame positions | Requires a temporally recurring visual match; the older Sora Turbo corner swirl is a different unsupported mark. |
-| `veo` | Current four-point diamond and legacy `Veo` text | Fixed bottom-right corner | Uses separate silhouettes and requires a recurring match; learned fill is preferable on structured backgrounds. |
+| `sora` | Sora 2 mascot, with or without the wordmark | Moves among frame positions | Requires a temporally recurring visual match; mascot-only matches also require complete-shape correlation, which rejects a measured Veo-diamond cross-match. The older Sora Turbo corner swirl is a different unsupported mark. |
+| `veo` | Current four-point diamond and legacy `Veo` text | Fixed bottom-right corner | Uses separate silhouettes and requires a recurring match; valid Google AI-video provenance favors Veo over Sora when their regions overlap or Veo covers every frame and Sora does not. Provenance alone does not create a visual detection. Learned fill is preferable on structured backgrounds. |
 | `seedance` | Boxed `AI` label | Fixed bottom-right corner | Requires an anchored recurring match; the full localized box is filled because a thinner synthetic shape mask leaves the real translucent rim behind. |
 | `doubao` | `豆包AI生成` text run | Fixed bottom-right corner | Reuses the image engine's synthetic alpha as the template; a stable run of at least 12 frames at confidence >=0.35 is required. Without Doubao TC260 confirmation, the run also needs a strong anchor at >=0.55. |
 | `dola` | `Dola AI` text | Fixed bottom-right corner | Requires an anchored recurring match; ByteDance or BytePlus provenance can relax only an existing visual run. |
@@ -60,7 +60,8 @@ pill detector; the generic pill shape does not attribute LiblibAI on its own.
 same temporal arbiter. It is separate from the image registry because selection
 is made over a sequence rather than one raster. The default `auto` mode scans
 all seven entries in one decode pass and selects the first temporally stable
-match in table order; an explicit mark restricts the scan to that row.
+match in table order, subject to the Veo/Sora overlap exception above; an
+explicit mark restricts the scan to that row.
 Accepted fills are motion-aligned across adjacent frames by default. The prior
 fill contributes only where its warped mask covers the current removal mask and
 nearby source context agrees. Scene cuts or disjoint marks retain the
@@ -132,7 +133,7 @@ detects nor decodes a watermark and never changes the provenance verdict.
 Pixel based image commands discover these extensions:
 
 - PNG;
-- JPEG;
+- JPEG (`.jpg`, `.jpeg`, `.jpe`, and `.jfif`);
 - WebP;
 - HEIC and HEIF;
 - AVIF.

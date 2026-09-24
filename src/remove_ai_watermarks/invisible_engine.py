@@ -62,8 +62,8 @@ def _target_size(width: int, height: int, max_resolution: int) -> tuple[int, int
     Set only to bound GPU/MPS memory on very large inputs (issue #10).
 
     There was also a ``min_resolution`` floor that scaled small inputs UP toward
-    SDXL's ~1024 training size. It went with the SDXL profiles: both surviving
-    profiles run at native geometry, so the floor was forced to 0 on every path and
+    SDXL's ~1024 training size. It went with the removed SDXL-only profiles: every
+    surviving profile runs at native geometry, so the floor was forced to 0 on every path and
     could not fire.
 
     Returns None when the cap does not apply (native resolution). Pure function so the
@@ -117,7 +117,7 @@ def _apply_postprocessing(
             progress(f"Sharpening (unsharp mask: {unsharp})...")
         out_cv = humanizer.unsharp_mask(out_cv, amount=unsharp)
 
-    # Adaptive polish (CLI default): restore the input's detail level in the
+    # Adaptive polish (per-profile default, see PROFILE_ADAPTIVE_POLISH): restore the input's detail level in the
     # softened output, sparing text/edges. Self-limiting where no deficit.
     if adaptive_polish:
         ref = reference()
@@ -225,6 +225,8 @@ class InvisibleEngine:
             seed: Random seed for reproducibility. None resolves to 0, because all
                 profiles are certified at a fixed seed.
             humanize: Intensity of Analog Humanizer film grain (0 = off).
+            vendor: Provenance vendor that selects the strength cohort and, for the
+                ``auto`` profile, the engine.
             unsharp: Final unsharp-mask sharpening strength (0 = off, default).
                 Applied after restoring the original resolution and before adaptive
                 polish and humanize; ~0.5-0.8 is a safe range, higher risks edge halos.
@@ -363,7 +365,7 @@ class InvisibleEngine:
             # single-write output is byte-identical.
             # Diffusers rounds native dimensions down to the latent grid (multiples
             # of 8), even when our own resolution policy did not resize the input.
-            # Route those outputs through the same final resize so --no-polish does
+            # Route those outputs through the same final resize so --no-adaptive-polish does
             # not silently change e.g. 1448x1086 into 1448x1080.
             needs_restore = target is not None or any(dimension % 8 for dimension in orig_size)
             if humanize > 0.0 or unsharp > 0.0 or adaptive_polish or needs_restore:

@@ -21,7 +21,7 @@ import tempfile
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, TypedDict
 
 import numpy as np
 from PIL import Image
@@ -34,6 +34,20 @@ if TYPE_CHECKING:
     from remove_ai_watermarks._internal.text_restoration import VerifiedTextManifest
 
 log = logging.getLogger(__name__)
+
+
+class DiffSynthVramConfig(TypedDict):
+    """DiffSynth's per-model placement: a dtype (or ``"disk"``) and a device per phase."""
+
+    offload_dtype: Any
+    offload_device: str
+    onload_dtype: Any
+    onload_device: str
+    preparing_dtype: Any
+    preparing_device: str
+    computation_dtype: Any
+    computation_device: str
+
 
 ZIMAGE_TURBO_MODEL_ID = "Tongyi-MAI/Z-Image-Turbo"
 SAM_MODEL_ID = "facebook/sam-vit-base"
@@ -150,19 +164,7 @@ def _pin_vram_managed_models(pipe: Any) -> None:
         if model is None:
             continue
         for module in model.modules():
-            if not all(
-                hasattr(module, attribute)
-                for attribute in (
-                    "offload_dtype",
-                    "offload_device",
-                    "onload_dtype",
-                    "onload_device",
-                    "preparing_dtype",
-                    "preparing_device",
-                    "computation_dtype",
-                    "computation_device",
-                )
-            ):
+            if not all(hasattr(module, attribute) for attribute in DiffSynthVramConfig.__annotations__):
                 continue
             module.offload_dtype = module.computation_dtype
             module.offload_device = module.computation_device
@@ -456,13 +458,17 @@ def _yunet_model_path() -> Path:
         YUNET_MODEL_URL,
         headers={"User-Agent": "remove-ai-watermarks"},
     )
-    with urllib.request.urlopen(request, timeout=60) as response:  # noqa: S310 - fixed HTTPS source
-        payload = response.read()
-        log.info(
-            "YuNet download response: status=%s content_length=%s",
-            getattr(response, "status", None),
-            len(payload),
-        )
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:  # noqa: S310 - fixed HTTPS source
+            payload = response.read()
+            log.info(
+                "YuNet download response: status=%s content_length=%s",
+                getattr(response, "status", None),
+                len(payload),
+            )
+    except OSError as exc:
+        log.warning("YuNet download from %s to %s failed: %s", YUNET_MODEL_URL, model_path, exc)
+        raise
     digest = hashlib.sha256(payload).hexdigest()
     if digest != YUNET_MODEL_SHA256:
         raise OSError(
@@ -724,7 +730,7 @@ class TwoStageZImagePipeline:
         return cls._zimage_vram_config()["computation_dtype"]
 
     @staticmethod
-    def _zimage_vram_config() -> dict[str, Any]:
+    def _zimage_vram_config() -> DiffSynthVramConfig:
         import torch
 
         return {
@@ -858,7 +864,14 @@ class TwoStageZImagePipeline:
             )
             return _clip_sam_masks_to_boxes(binary_masks, boxes, image.size)
         except Exception as exc:
-            log.warning("SAM face-mask refinement failed (%s); using box-derived ellipse masks", exc)
+            log.warning(
+                "SAM face-mask refinement failed (%s, model %s on %s, %d boxes); using box-derived ellipse masks",
+                exc,
+                SAM_MODEL_ID,
+                self.device,
+                len(boxes),
+                exc_info=True,
+            )
             return _ellipse_masks(boxes, image.size)
 
     def preload(self, *, global_only: bool = False) -> None:

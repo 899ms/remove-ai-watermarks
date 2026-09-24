@@ -17,7 +17,7 @@ import re
 import struct
 import zlib
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, TypedDict, cast
 
 import piexif
 from PIL import Image
@@ -28,6 +28,7 @@ from remove_ai_watermarks._internal.constants import (
     PNG_METADATA_CHUNKS,
     RIFF_CODED_IMAGE_CHUNKS,
     RIFF_METADATA_CHUNKS,
+    SUPPORTED_FORMATS,
 )
 from remove_ai_watermarks._internal.isobmff import (
     C2PA_BOX_TYPES,
@@ -46,13 +47,7 @@ __all__ = [
 ]
 
 SUPPORTED_EXTENSIONS = {
-    ".png",
-    ".jpg",
-    ".jpeg",
-    ".webp",
-    ".heic",
-    ".heif",
-    ".avif",
+    *SUPPORTED_FORMATS,
     ".tif",
     ".tiff",
     ".bmp",
@@ -64,6 +59,24 @@ SUPPORTED_EXTENSIONS = {
     ".m4v",
     ".jxl",
 }
+
+
+class ContainerEntry(TypedDict, total=False):
+    """One PNG/RIFF chunk or ISOBMFF provenance box in the record, or a walker error."""
+
+    type: str
+    length: int
+    text: str
+    kind: str
+    time: str
+    gamma: float
+    rendering_intent: int
+    profile_name: str
+    base64: str
+    apple_screenshot_marker: bool
+    truncated: bool
+    error: str
+
 
 FORENSIC_METADATA_SCHEMA_VERSION = 1
 FORENSIC_METADATA_RECORD_TYPE = "forensic_metadata"
@@ -196,10 +209,10 @@ def png_text_decode(ctype: str, body: bytes) -> str:
     return f"{keyword}\x00{tail.decode('utf-8', 'replace')}"
 
 
-def read_png_chunks(data: bytes) -> tuple[list[dict[str, Any]], bytes]:
+def read_png_chunks(data: bytes) -> tuple[list[ContainerEntry], bytes]:
     """Every PNG chunk in order (type, length; text chunks decoded and
     inflated, binary chunks as base64) plus the post-IEND trailer bytes."""
-    chunks: list[dict[str, Any]] = []
+    chunks: list[ContainerEntry] = []
     post_iend = b""
     try:
         pos = 8
@@ -207,7 +220,7 @@ def read_png_chunks(data: bytes) -> tuple[list[dict[str, Any]], bytes]:
             length = struct.unpack(">I", data[pos : pos + 4])[0]
             ctype = data[pos + 4 : pos + 8].decode("latin-1")
             body = data[pos + 8 : pos + 8 + length]
-            entry: dict[str, Any] = {"type": ctype, "length": length}
+            entry: ContainerEntry = {"type": ctype, "length": length}
             if ctype in ("tEXt", "zTXt", "iTXt"):
                 entry["text"] = png_text_decode(ctype, body)
                 if entry["text"].startswith("XML:com.adobe.xmp"):
@@ -496,9 +509,9 @@ def _jpeg_forensics_bytes(data: bytes) -> dict[str, Any]:
     return out
 
 
-def read_webp_chunks(data: bytes) -> list[dict[str, Any]]:
+def read_webp_chunks(data: bytes) -> list[ContainerEntry]:
     """WebP RIFF chunk inventory (VP8X/VP8/VP8L/EXIF/XMP/ICCP/ANIM...)."""
-    chunks: list[dict[str, Any]] = []
+    chunks: list[ContainerEntry] = []
     try:
         pos = 12
         declared_end = 8 + struct.unpack("<I", data[4:8])[0] if len(data) >= 12 else len(data)
@@ -508,7 +521,7 @@ def read_webp_chunks(data: bytes) -> list[dict[str, Any]]:
             ctype = chunk_type.decode("latin-1")
             length = struct.unpack("<I", data[pos + 4 : pos + 8])[0]
             body = data[pos + 8 : min(pos + 8 + length, container_end)]
-            entry: dict[str, Any] = {"type": ctype, "length": length}
+            entry: ContainerEntry = {"type": ctype, "length": length}
             if ctype == "XMP ":
                 entry["kind"] = "xmp"
                 entry["text"] = body.decode("utf-8", "replace")
@@ -523,9 +536,9 @@ def read_webp_chunks(data: bytes) -> list[dict[str, Any]]:
     return chunks
 
 
-def read_webp_late_metadata_path(path: Path, window: int = _RAW_SCAN_HEAD) -> list[dict[str, Any]]:
+def read_webp_late_metadata_path(path: Path, window: int = _RAW_SCAN_HEAD) -> list[ContainerEntry]:
     """Stream metadata chunks after ``window`` while seeking over coded frames."""
-    chunks: list[dict[str, Any]] = []
+    chunks: list[ContainerEntry] = []
     try:
         file_size = path.stat().st_size
         with open(path, "rb") as handle:
@@ -546,7 +559,7 @@ def read_webp_late_metadata_path(path: Path, window: int = _RAW_SCAN_HEAD) -> li
                 if chunk_type in RIFF_METADATA_CHUNKS and start >= window:
                     handle.seek(start)
                     body = handle.read(min(safe_length, _B64_CAP))
-                    entry: dict[str, Any] = {
+                    entry: ContainerEntry = {
                         "type": chunk_type.decode("latin-1"),
                         "length": length,
                         "base64": _b64(body),
@@ -603,7 +616,7 @@ def read_isobmff_inventory(data: bytes) -> dict[str, Any]:
 
         top = boxes(0, len(data))
         out["boxes"] = [t for t, _, _ in top]
-        provenance_boxes: list[dict[str, Any]] = []
+        provenance_boxes: list[ContainerEntry] = []
         for t, s, e in top:
             if t.encode("latin-1") in C2PA_BOX_TYPES:
                 provenance_boxes.append(
@@ -676,7 +689,7 @@ def read_isobmff_provenance_path(path: Path) -> dict[str, Any]:
     It seeks over media payloads instead of loading them into memory.
     """
     out: dict[str, Any] = {"boxes": []}
-    provenance_boxes: list[dict[str, Any]] = []
+    provenance_boxes: list[ContainerEntry] = []
     collected = 0
     try:
         file_size = path.stat().st_size
@@ -689,7 +702,7 @@ def read_isobmff_provenance_path(path: Path) -> dict[str, Any]:
                     to_read = min(payload_length, _PROVENANCE_B64_CAP - collected)
                     f.seek(payload_offset)
                     payload = f.read(to_read)
-                    entry: dict[str, Any] = {
+                    entry: ContainerEntry = {
                         "type": box_type,
                         "length": payload_length,
                         "base64": _b64(payload, cap=_PROVENANCE_B64_CAP),
@@ -705,9 +718,9 @@ def read_isobmff_provenance_path(path: Path) -> dict[str, Any]:
     return out
 
 
-def read_png_late_metadata_path(path: Path, window: int = _RAW_SCAN_HEAD) -> list[dict[str, Any]]:
+def read_png_late_metadata_path(path: Path, window: int = _RAW_SCAN_HEAD) -> list[ContainerEntry]:
     """Stream PNG metadata chunks whose payload starts after ``window``."""
-    chunks: list[dict[str, Any]] = []
+    chunks: list[ContainerEntry] = []
     try:
         file_size = path.stat().st_size
         with open(path, "rb") as f:
@@ -724,7 +737,7 @@ def read_png_late_metadata_path(path: Path, window: int = _RAW_SCAN_HEAD) -> lis
                 safe_length = max(0, min(length, file_size - data_start))
                 if chunk_type in PNG_METADATA_CHUNKS and data_start >= window:
                     body = f.read(min(safe_length, _B64_CAP))
-                    entry: dict[str, Any] = {
+                    entry: ContainerEntry = {
                         "type": chunk_type.decode("latin-1"),
                         "length": length,
                         "base64": _b64(body),

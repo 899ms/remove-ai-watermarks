@@ -303,3 +303,7 @@ explicit unchanged decodes when comparing stored pixels. Execute Ubuntu Bash
 workflow harnesses only on POSIX hosts with Bash; keep their pure Python checks
 active on every platform. Round floating-point image output before uint8
 conversion when quantization must preserve constant values across OpenCV builds.
+OpenCV 5 draws Hershey `putText` glyphs smaller and heavier than 4.x, so a
+calibrated template drawn with `putText` ships as a committed PNG whose recipe
+refuses any OpenCV but 4.x (`scripts/render_video_hershey_templates.py`,
+`scripts/build_openart_alpha.py`); never render one at import time.

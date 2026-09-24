@@ -388,7 +388,8 @@ def extract_pixel_evidence(image_path: Path, *, artifacts: bool = False, timings
     residual's sliding window and the ELA re-save are the two expensive steps and
     each family would otherwise redo them.
 
-    A family that fails or does not apply is left empty rather than raising: an
+    A family that does not apply is left empty, and one that fails records
+    ``{"error": <exception type>}`` (status ``partial``), rather than raising: an
     undecodable file, or one too small for the block DCT, still returns a
     :class:`PixelEvidence` whose ``decoded`` / empty fields say so. Missing numpy is
     the one hard error, since then nothing can be measured at all.

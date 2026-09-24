@@ -74,8 +74,8 @@ class TestVideoGallery:
 
     def test_selection_accepts_each_example(self) -> None:
         # The shipped temporal selection (not just the per-frame detector) must
-        # accept the clip: table order resolves cross-template ties, so the example
-        # must carry the discriminative variant of its mark.
+        # accept the clip, including the mascot-only Sora example and the
+        # generated Veo text variant.
         for key in VIDEO_VISIBLE_MARKS:
             rep = identify_video(_GALLERY / key / "example.mp4", check_visible=True)
             assert rep.visible_mark == key, f"{key}: selection returned {rep.visible_mark!r}"

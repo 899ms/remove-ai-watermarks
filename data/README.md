@@ -10,6 +10,8 @@ data/
     visible/      Per-mark example gallery: one synthetic canonical example per
                   registered mark plus documented provider originals where available
                   (see fixtures/visible/README.md)
+    synthetic/    Frozen synthetic renders that unit tests stamp onto frames, each
+                  produced by the script named in the test that loads it
   calibration/
     <vendor>/     Minimal controlled inputs needed to rebuild detector assets
   synthid/

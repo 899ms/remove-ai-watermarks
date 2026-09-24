@@ -11,7 +11,8 @@ def _tokens(value: str) -> tuple[str, ...]:
     return tuple(value.split("|"))
 
 
-SUPPORTED_FORMATS = frozenset(_tokens(".png|.jpg|.jpeg|.webp|.heic|.heif|.avif"))
+JPEG_SUFFIXES = frozenset(_tokens(".jpg|.jpeg|.jpe|.jfif"))
+SUPPORTED_FORMATS = JPEG_SUFFIXES | frozenset(_tokens(".png|.webp|.heic|.heif|.avif"))
 AI_METADATA_KEYS = _tokens(
     "parameters|postprocessing|extras|workflow|prompt|Dream|SD:mode|StableDiffusionVersion|"
     "generation_time|Model|Model hash|Seed"

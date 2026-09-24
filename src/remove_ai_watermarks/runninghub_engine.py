@@ -27,7 +27,7 @@ whose producer USCC names the entity, harvested 2026-07-22 by
     1536-wide frames) at ~0.008/0.006 x/y margins; the locate box below covers
     it with NCC slack.
   * ``alpha_height_frac`` comes from the silhouette aspect (0.128) at the
-    measured width (0.27 * 1.25 rung ~= 0.3375 >= 0.32), per the standing rule
+    measured 0.32 width (0.32 * 0.128 ~= 0.04), per the standing rule
     that it is measured, not inherited.
   * STRICT ONLY (``provenance_ncc_factor`` 1.0): raw gray NCC is
     contrast-DEPENDENT and the sub-gate band of a corner-anchored gray match is

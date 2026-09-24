@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 
 from remove_ai_watermarks._internal.constants import (
     C2PA_CHUNK_TYPE,
+    JPEG_SUFFIXES,
     PNG_METADATA_CHUNKS,
     PNG_SIGNATURE,
     RIFF_METADATA_CHUNKS,
@@ -1334,7 +1335,7 @@ def get_ai_metadata(image_path: Path) -> dict[str, str]:
 
     # PIL may not open AVIF/HEIF/JPEG-XL without optional plugins (and a
     # third-party plugin autoload can raise a non-OSError); fall through to the
-    # C2PA/binary path on any open failure. See CLAUDE.md.
+    # C2PA/binary path on any open failure.
     try:
         with Image.open(image_path) as img:
             for key, value in img.info.items():
@@ -1733,7 +1734,7 @@ def _png_chunk_should_be_dropped(
 
 # Fallback extension -> PIL save format, used only when the content sniff is
 # inconclusive (never for JPEG re-encode of lossless content).
-_EXT_TO_PIL_FORMAT = {".jpg": "JPEG", ".jpeg": "JPEG", ".webp": "WEBP", ".png": "PNG"}
+_EXT_TO_PIL_FORMAT = {**dict.fromkeys(JPEG_SUFFIXES, "JPEG"), ".webp": "WEBP", ".png": "PNG"}
 
 
 def _sniff_image_format(head: bytes) -> str | None:

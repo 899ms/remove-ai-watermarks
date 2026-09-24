@@ -202,9 +202,12 @@ preserved through a timestamped in-memory NUT bridge instead of being flattened
 to the average frame rate. Non-zero source start timestamps are retained
 together with the copied audio offset. The default `--mark auto`
 scans all providers in one decode pass and selects the first stable match in
-the specificity order shown below. Pass an explicit mark to restrict detection
-to one provider.
-Sora covers the moving Sora 2 mascot and wordmark. Veo covers both the current
+the specificity order shown below. Valid Google AI-video provenance breaks a
+Sora/Veo cross-match in favor of Veo when the diamond is nested in the Sora
+region or Veo persists through the complete clip while Sora does not.
+Pass an explicit mark to restrict detection to one provider.
+Sora covers the moving Sora 2 mascot, with or without the wordmark; mascot-only
+matches also require the complete two-eye shape. Veo covers both the current
 four-point diamond and the legacy `Veo` text. Seedance covers the fixed boxed
 `AI` label, Dola covers the fixed `Dola AI` text, Hailuo AI covers the composite
 `MINIMAX | hailuo AI` label, and Kling AI covers the bottom-right `KLING AI` or

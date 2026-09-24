@@ -61,6 +61,21 @@ class TestUnicodeRoundTrip:
         assert np.array_equal(out, src)
 
 
+@pytest.mark.parametrize("suffix", [".jpe", ".jfif"])
+def test_jpeg_aliases_are_supported_and_written_as_jpeg(tmp_path: Path, suffix: str) -> None:
+    from remove_ai_watermarks._internal.utils import get_image_format, is_supported_format
+
+    path = tmp_path / f"marked{suffix}"
+    source = np.full((32, 48, 3), (10, 120, 240), dtype=np.uint8)
+    assert is_supported_format(path)
+    assert get_image_format(path) == "JPEG"
+    assert image_io.imwrite(path, source)
+    assert path.read_bytes().startswith(b"\xff\xd8")
+    decoded = image_io.imread(path)
+    assert decoded is not None
+    assert decoded.shape == source.shape
+
+
 class TestToBgr:
     def test_grayscale_2d_promoted_to_bgr(self) -> None:
         gray = np.full((4, 5), 120, dtype=np.uint8)

@@ -25,7 +25,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from remove_ai_watermarks._internal.constants import PNG_SIGNATURE
+from remove_ai_watermarks._internal.constants import JPEG_SUFFIXES, PNG_SIGNATURE
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -443,7 +443,7 @@ def _encode_params(ext: str) -> list[int]:
     build without the chroma/subsampling flags still gets quality 100."""
     import cv2
 
-    if ext in (".jpg", ".jpeg"):
+    if ext in JPEG_SUFFIXES:
         params = [cv2.IMWRITE_JPEG_QUALITY, 100]
         cq = getattr(cv2, "IMWRITE_JPEG_CHROMA_QUALITY", None)
         if cq is not None:
@@ -533,6 +533,8 @@ def imwrite(
     ext = (Path(path).suffix or ".png").lower()
     if ext in _HEIF_WRITE_EXTS:
         return _pil_write(path, img, icc_profile=icc, orientation=orient)
+    if ext in JPEG_SUFFIXES:
+        ext = ".jpg"
     try:
         ok, buf = cv2.imencode(ext, img, _encode_params(ext))
     except cv2.error:

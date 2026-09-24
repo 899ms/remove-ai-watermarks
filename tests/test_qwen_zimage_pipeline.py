@@ -151,6 +151,13 @@ def test_global_stack_is_resident_on_a_large_card_and_streams_on_a_small_one():
     assert small["offload_device"] == "disk"
     assert small["onload_device"] == "cpu"
 
+    # The module pragmas silence return-type checks, so pin the key set here: every
+    # config is splatted into ModelConfig and a misspelled key would load silently.
+    from remove_ai_watermarks._internal.two_stage_pipeline import DiffSynthVramConfig
+
+    for config in (large, small, QwenZImagePipeline._zimage_vram_config()):
+        assert list(config) == list(DiffSynthVramConfig.__annotations__)
+
 
 @pytest.mark.parametrize(
     ("cpu_offload", "expected"),

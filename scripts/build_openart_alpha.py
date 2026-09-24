@@ -18,9 +18,14 @@ gap explicitly. Replace this asset (and re-run the engine's calibration)
 the moment a real captured OpenArt export is available under
 ``data/calibration/openart/``.
 
+The wordmark is a Hershey ``cv2.putText`` render, which OpenCV 5 draws with
+different glyphs than the OpenCV 4 build the committed asset came from, so the
+script refuses to run on any OpenCV other than 4.x.
+
 Usage::
 
-    uv run python scripts/build_openart_alpha.py
+    uv run --no-project --with 'opencv-python-headless>=4.8,<5' --with numpy \
+        python scripts/build_openart_alpha.py
 """
 
 # cv2/numpy boundary: third-party libs ship no usable element types; relax the
@@ -83,6 +88,8 @@ def build() -> np.ndarray:
 
 
 def main() -> None:
+    if not cv2.__version__.startswith("4."):
+        raise SystemExit(f"OpenCV {cv2.__version__} draws different glyphs; run with OpenCV 4.x")
     canvas = build()
     _ASSET.parent.mkdir(parents=True, exist_ok=True)
     cv2.imwrite(str(_ASSET), canvas)

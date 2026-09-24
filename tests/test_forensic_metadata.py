@@ -52,8 +52,16 @@ def _png_chunk(chunk_type: bytes, payload: bytes) -> bytes:
 
 
 def test_supported_extensions_are_media_not_documents():
-    assert {".jpg", ".png", ".webp", ".heic", ".mp4"}.issubset(SUPPORTED_EXTENSIONS)
+    assert {".jpg", ".jpeg", ".jpe", ".jfif", ".png", ".webp", ".heic", ".mp4"}.issubset(SUPPORTED_EXTENSIONS)
     assert ".pdf" not in SUPPORTED_EXTENSIONS
+
+
+@pytest.mark.parametrize("suffix", [".jpe", ".jfif"])
+def test_jpeg_alias_forensic_record_uses_jpeg_content(tmp_path: Path, suffix: str):
+    path = _jpeg(tmp_path / f"photo{suffix}")
+    record = collect_forensic_metadata(path)
+    assert record["extension"] == suffix
+    assert record["content_format"] == "jpeg"
 
 
 def test_json_helpers_and_format_sniffer():

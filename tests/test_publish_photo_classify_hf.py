@@ -12,8 +12,14 @@ sys.path.insert(0, str(SCRIPTS))
 import publish_photo_classify_hf as publish  # noqa: E402
 
 
-def test_hub_id_is_the_photo_classify_repo() -> None:
-    assert publish.HUB_REPO == "wiltodelta/raiw-photo-classify"
+def test_hub_ids_match_the_runtime_loader() -> None:
+    # The workflow runs this script with --no-project, so it cannot import the package constants.
+    from remove_ai_watermarks.classify import RECEIPT_GATE_FILE, RECEIPT_GATE_STABLE_FILE, WEIGHTS_REPO
+
+    assert publish.HUB_REPO == WEIGHTS_REPO
+    assert publish.GATE_FILE == RECEIPT_GATE_FILE
+    assert publish.GATE_STABLE_FILE == RECEIPT_GATE_STABLE_FILE
+    assert publish.GATE_SOURCE.is_file()
 
 
 def test_publish_freeze_includes_both_clip_runtimes() -> None:

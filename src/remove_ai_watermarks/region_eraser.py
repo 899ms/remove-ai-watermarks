@@ -224,7 +224,11 @@ def _get_session(name: str, repo_id: str, filename: str, label: str) -> object:
     import onnxruntime as ort
     from huggingface_hub import hf_hub_download
 
-    model_path = hf_hub_download(repo_id=repo_id, filename=filename)
+    try:
+        model_path = hf_hub_download(repo_id=repo_id, filename=filename)
+    except Exception as exc:
+        logger.warning("Downloading %s model %s from %s failed: %s", label, filename, repo_id, exc)
+        raise
     logger.info("Loading %s model: %s", label, model_path)
     session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
     _sessions[name] = session

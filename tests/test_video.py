@@ -904,11 +904,55 @@ class TestVideoMetadataApi:
 
 
 class TestVideoProvenanceApi:
+    @pytest.mark.parametrize(
+        ("generator", "issuer", "expected"),
+        [
+            (
+                "Google C2PA Core Generator Library",
+                "Google LLC, OpenAI",
+                "Google (Gemini / Imagen)",
+            ),
+            (
+                "Dreamina/2.0",
+                "OpenAI",
+                "ByteDance Dreamina",
+            ),
+            ("Higgsfield AI", "BytePlus (ByteDance)", "Higgsfield AI"),
+            ("Higgsfield AI", "", "Higgsfield AI"),
+            ("FastVid", "", "FastVid"),
+        ],
+    )
+    def test_claim_generator_precedes_mixed_certificate_issuers(self, generator: str, issuer: str, expected: str):
+        from remove_ai_watermarks.video import _platform_from_video_metadata
+
+        assert _platform_from_video_metadata({"claim_generator": generator, "issuer": issuer}) == expected
+
     def test_c2pa_platform_keeps_the_bytedance_surface_name(self):
         from remove_ai_watermarks.video import _platform_from_video_metadata
 
         assert _platform_from_video_metadata({"issuer": "BytePlus (ByteDance)"}) == "BytePlus (ByteDance)"
         assert _platform_from_video_metadata({"issuer": "ByteDance (Volcano Engine)"}) == "ByteDance Volcano Engine"
+
+    def test_metadata_only_identification_prefers_generator_to_mixed_issuer(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        from remove_ai_watermarks.video import identify_video
+
+        source = _video_with_c2pa(tmp_path / "source.mp4")
+        monkeypatch.setattr(
+            "remove_ai_watermarks.metadata.get_ai_metadata",
+            lambda _path: {
+                "claim_generator": "Google C2PA Core Generator Library",
+                "issuer": "Google LLC, OpenAI",
+                "source_type": "trainedAlgorithmicMedia (AI-generated)",
+            },
+        )
+
+        report = identify_video(source, check_visible=False)
+
+        assert report.platform == "Google (Gemini / Imagen)"
+        assert report.visible_mark is None
+        assert report.has_ai_metadata is True
 
     def test_identifies_metadata_without_pixel_scan(self, tmp_path: Path):
         from remove_ai_watermarks.video import identify_video
@@ -1616,13 +1660,28 @@ class TestSoraFrameLocalization:
         assert detection.confidence == 0.0
         assert detection.region is None
 
+    def test_localizes_independently_rendered_mascot_without_wordmark(self):
+        from remove_ai_watermarks.video_visible import detect_sora_frame
+
+        mark, _region = _independent_sora_mark()
+        mascot = cv2.resize(mark[:, :45], (55, 55), interpolation=cv2.INTER_AREA)
+        frame = np.full((720, 1280, 3), 36, dtype=np.uint8)
+        _stamp_gray_mark(frame, mascot, x=900, y=500, opacity=0.78)
+
+        detection = detect_sora_frame(frame)
+
+        assert detection.confidence >= 0.60
+        assert detection.region is not None
+        assert abs(detection.region[0] - 900) <= 10
+        assert abs(detection.region[1] - 500) <= 10
+
 
 class TestVeoFrameLocalization:
     def test_localizes_independently_rendered_diamond_at_relocated_position(self):
-        from remove_ai_watermarks.video_visible import _region_iou, detect_veo_frame
+        from remove_ai_watermarks.video_visible import _region_iou, detect_sora_frame, detect_veo_frame
 
         frame = np.full((720, 1280, 3), 28, dtype=np.uint8)
-        size = 48
+        size = 55
         x, y = 1080, 570
         mark = Image.new("L", (size, size), 0)
         points = (
@@ -1643,6 +1702,7 @@ class TestVeoFrameLocalization:
         assert detection.region is not None
         assert detection.confidence >= 0.70
         assert _region_iou(detection.region, (x, y, size, size)) >= 0.70
+        assert detect_sora_frame(frame).confidence < 0.60
 
     def test_localizes_independently_rendered_legacy_text(self):
         from remove_ai_watermarks.video_visible import _region_iou, detect_veo_frame
@@ -1714,22 +1774,16 @@ class TestByteDanceFrameLocalization:
         assert _region_iou(detection.region, (x, y, 80, 60)) >= 0.75
 
     def test_localizes_independently_rendered_dola_text(self):
+        from pathlib import Path
+
         from remove_ai_watermarks.video_visible import _region_iou, detect_dola_frame
 
         frame = np.full((720, 1280, 3), 35, dtype=np.uint8)
-        mark = np.zeros((40, 150), dtype=np.uint8)
-        cv2.putText(
-            mark,
-            "Dola AI",
-            (2, 28),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.9,
-            255,
-            2,
-            cv2.LINE_AA,
-        )
-        ys, xs = np.where(mark > 0)
-        mark = mark[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1]
+        # A frozen OpenCV 4 render in the other Hershey face: OpenCV 5 draws the same
+        # putText call smaller and heavier (scripts/render_video_hershey_templates.py).
+        fixture = Path(__file__).resolve().parents[1] / "data/fixtures/synthetic/dola_hershey_simplex.png"
+        mark = cv2.imread(str(fixture), cv2.IMREAD_GRAYSCALE)
+        assert mark is not None
         mark_height, mark_width = mark.shape
         x = frame.shape[1] - mark_width - 18
         y = frame.shape[0] - mark_height - 14
@@ -2667,6 +2721,71 @@ class TestVideoVisibleFullClip:
 
 
 class TestVideoVisibleApi:
+    @pytest.mark.parametrize(
+        ("sora_box", "sora_frames", "integrity", "signature", "signer", "generator", "expected_mark"),
+        [
+            ((1125, 584, 155, 69), 15, "valid", "valid", "unknown", "Google C2PA Core Generator Library", "veo"),
+            ((300, 200, 155, 69), 15, "valid", "valid", "unknown", "Google C2PA Core Generator Library", "sora"),
+            ((300, 200, 155, 69), 8, "valid", "valid", "unknown", "Google C2PA Core Generator Library", "veo"),
+            ((1125, 584, 155, 69), 15, "invalid", "valid", "unknown", "Google C2PA Core Generator Library", "sora"),
+            ((1125, 584, 155, 69), 15, "valid", "invalid", "unknown", "Google C2PA Core Generator Library", "sora"),
+            # A revoked or expired signing credential is "invalid" to identify, so it
+            # cannot license the Veo override either.
+            ((1125, 584, 155, 69), 15, "valid", "valid", "invalid", "Google C2PA Core Generator Library", "sora"),
+            ((1125, 584, 155, 69), 15, "valid", "valid", "unknown", "Sora export", "sora"),
+        ],
+    )
+    def test_google_veo_run_beats_nested_or_partial_sora_cross_match(
+        self,
+        sora_box: tuple[int, int, int, int],
+        sora_frames: int,
+        integrity: str,
+        signature: str,
+        signer: str,
+        generator: str,
+        expected_mark: str,
+    ):
+        from remove_ai_watermarks.video import _select_stable_visible_mark
+        from remove_ai_watermarks.video_visible import FrameLocalization, VideoScan
+
+        veo_box = (1132, 572, 56, 56)
+        scans = {
+            "sora": VideoScan(
+                width=1280,
+                height=720,
+                fps=24.0,
+                detections=tuple(
+                    FrameLocalization(
+                        index,
+                        0.66 if index < sora_frames else 0.0,
+                        sora_box if index < sora_frames else None,
+                    )
+                    for index in range(15)
+                ),
+            ),
+            "veo": VideoScan(
+                width=1280,
+                height=720,
+                fps=24.0,
+                detections=tuple(FrameLocalization(index, 0.82, veo_box) for index in range(15)),
+            ),
+        }
+        google_markers = {
+            "claim_generator": generator,
+            "issuer": "Google LLC",
+            "source_type": "trainedAlgorithmicMedia (AI-generated)",
+            "c2pa_integrity": integrity,
+            "c2pa_signature": signature,
+            "c2pa_signer_validity": signer,
+        }
+
+        selected = _select_stable_visible_mark(scans, google_markers, ("sora", "veo"))
+
+        assert selected is not None
+        assert selected[0] == expected_mark
+        assert selected[2] == [veo_box if expected_mark == "veo" else sora_box] * 15
+        assert selected[4] == ("veo" if expected_mark == "veo" else "box")
+
     def test_auto_prefers_specific_sora_run_over_hailuo_cross_match(
         self,
         tmp_path: Path,

@@ -159,7 +159,7 @@ def load_pipeline(control: str, device: str, dtype: Any) -> Any:
     load_kwargs: dict[str, Any] = {"controlnet": controlnet, "torch_dtype": dtype}
     if dtype == torch.float16:
         # The stock SDXL VAE decodes to NaN/black in fp16; the fp16-fix VAE is the
-        # same swap the production pipeline uses (_SDXL_FP16_VAE_ID).
+        # same swap the sdxl-zimage profile makes (sdxl_zimage_pipeline.SDXL_VAE_MODEL_ID).
         load_kwargs["vae"] = AutoencoderKL.from_pretrained(FP16_VAE, torch_dtype=dtype)
     pipe = StableDiffusionXLControlNetImg2ImgPipeline.from_pretrained(BASE_MODEL, **load_kwargs)
     pipe = pipe.to(device)

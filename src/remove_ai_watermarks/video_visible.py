@@ -1,7 +1,7 @@
 """Visible AI-watermark localization and removal for video.
 
 Supported marks use fully synthetic silhouettes made from geometric primitives,
-OpenCV's built-in font, and Pillow's bundled font. Sora detection searches the
+frozen renders of OpenCV 4's built-in font, and Pillow's bundled font. Sora detection searches the
 full frame because the wordmark moves. Veo detection covers both the current
 four-point diamond and legacy ``Veo`` text. Seedance detects the boxed ``AI``
 label, Dola detects its compact text label, Hailuo AI detects the composite
@@ -28,7 +28,7 @@ import logging
 from contextlib import suppress
 from dataclasses import dataclass, replace
 from fractions import Fraction
-from functools import lru_cache
+from functools import cache, lru_cache
 from itertools import pairwise
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -67,6 +67,7 @@ _SORA_RELATIVE_HEIGHTS = (0.065, 0.075, 0.085, 0.095, 0.105)
 _SORA_PROVENANCE_WEAK_CONFIDENCE = 0.58
 _SORA_STRICT_WEAK_CONFIDENCE = 0.60
 _SORA_STRONG_CONFIDENCE = 0.65
+_SORA_ICON_SHAPE_FLOOR = 0.50
 _VEO_PROVENANCE_WEAK_CONFIDENCE = 0.45
 _VEO_STRICT_WEAK_CONFIDENCE = 0.50
 _VEO_STRONG_CONFIDENCE = 0.55
@@ -222,21 +223,14 @@ def _seedance_template() -> NDArray[Any]:
     return np.asarray(canvas, dtype=np.uint8)
 
 
-@lru_cache(maxsize=1)
 def _dola_template() -> NDArray[Any]:
-    """Return a synthetic Dola AI text silhouette using OpenCV's font."""
-    canvas = np.zeros((100, 400), dtype=np.uint8)
-    cv2.putText(
-        canvas,
-        "Dola AI",
-        (2, 72),
-        cv2.FONT_HERSHEY_DUPLEX,
-        2.2,
-        255,
-        3,
-        cv2.LINE_AA,
-    )
-    return _crop_nonzero(canvas)
+    """Return the synthetic Dola AI text silhouette drawn in OpenCV 4's Hershey font.
+
+    The Hershey templates are frozen assets, not rendered here: OpenCV 5 draws the
+    same ``putText`` call with smaller, heavier glyphs than the ones the detectors were
+    calibrated on. ``scripts/render_video_hershey_templates.py`` is the recipe.
+    """
+    return _asset_template("video_dola_hershey_duplex.png")
 
 
 @lru_cache(maxsize=1)
@@ -273,7 +267,7 @@ def _hailuo_template() -> NDArray[Any]:
 def _kling_templates() -> tuple[NDArray[Any], ...]:
     """Return synthetic font and capitalization variants for the Kling wordmark core."""
     templates: list[NDArray[Any]] = []
-    for text in ("KLING AI", "KlingAI"):
+    for text, asset_stem in (("KLING AI", "kling_ai"), ("KlingAI", "klingai")):
         canvas = Image.new("L", (430, 104), 0)
         ImageDraw.Draw(canvas).text(
             (2, 12),
@@ -284,19 +278,8 @@ def _kling_templates() -> tuple[NDArray[Any], ...]:
             stroke_fill=255,
         )
         templates.append(_crop_nonzero(np.asarray(canvas, dtype=np.uint8)))
-        for font in (cv2.FONT_HERSHEY_SIMPLEX, cv2.FONT_HERSHEY_DUPLEX):
-            cv_template = np.zeros((100, 500), dtype=np.uint8)
-            cv2.putText(
-                cv_template,
-                text,
-                (2, 72),
-                font,
-                2.2,
-                255,
-                3,
-                cv2.LINE_AA,
-            )
-            templates.append(_crop_nonzero(cv_template))
+        # Frozen OpenCV 4 Hershey renders; see _dola_template for why.
+        templates.extend(_asset_template(f"video_{asset_stem}_hershey_{font}.png") for font in ("simplex", "duplex"))
     return tuple(templates)
 
 
@@ -313,7 +296,7 @@ def _top_hat(gray: NDArray[Any]) -> NDArray[Any]:
     return cv2.morphologyEx(gray, cv2.MORPH_TOPHAT, kernel)
 
 
-@lru_cache(maxsize=1)
+@cache
 def _asset_template(name: str) -> NDArray[Any]:
     """Load a package asset as a video detect template (white glyph on black).
 
@@ -331,7 +314,6 @@ def _asset_template(name: str) -> NDArray[Any]:
     return at
 
 
-@lru_cache(maxsize=1)
 def _doubao_template() -> NDArray[Any]:
     return _asset_template("doubao_alpha.png")
 
@@ -450,7 +432,7 @@ def detect_sora_frame(
             template_width = max(1, round(base_template.shape[1] * template_height / base_template.shape[0]))
             if template_height >= normalized_height or template_width >= normalized_width:
                 continue
-            _, template_feature = _resized_template_feature(
+            template, template_feature = _resized_template_feature(
                 template_key,
                 template_width,
                 template_height,
@@ -460,6 +442,14 @@ def detect_sora_frame(
             _, confidence, _, location = cv2.minMaxLoc(scores)
             if confidence <= best_confidence:
                 continue
+            if icon_only:
+                # Edge-only correlation also accepts diamonds and scene texture.
+                # Confirm the full mascot silhouette, including its two eyes.
+                x, y = location
+                candidate = gray[y : y + template_height, x : x + template_width]
+                shape_confidence = float(cv2.matchTemplate(candidate, template, cv2.TM_CCOEFF_NORMED)[0, 0])
+                if shape_confidence < _SORA_ICON_SHAPE_FLOOR:
+                    continue
             best_confidence = float(confidence)
             best_region = _expanded_region(
                 location,
@@ -923,15 +913,15 @@ def detect_veo_frame(
     return FrameLocalization(frame_index, best_confidence, best_region)
 
 
-def _region_iou(left: Region, right: Region) -> float:
+def region_intersection(left: Region, right: Region) -> int:
     lx, ly, lw, lh = left
     rx, ry, rw, rh = right
-    x0 = max(lx, rx)
-    y0 = max(ly, ry)
-    x1 = min(lx + lw, rx + rw)
-    y1 = min(ly + lh, ry + rh)
-    intersection = max(0, x1 - x0) * max(0, y1 - y0)
-    union = lw * lh + rw * rh - intersection
+    return max(0, min(lx + lw, rx + rw) - max(lx, rx)) * max(0, min(ly + lh, ry + rh) - max(ly, ry))
+
+
+def _region_iou(left: Region, right: Region) -> float:
+    intersection = region_intersection(left, right)
+    union = left[2] * left[3] + right[2] * right[3] - intersection
     return intersection / union if union > 0 else 0.0
 
 

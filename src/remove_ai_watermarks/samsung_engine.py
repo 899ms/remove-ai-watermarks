@@ -56,7 +56,7 @@ DETECT_NCC_THRESHOLD = 0.40
 # Detection-silhouette geometry, solved by scripts/visible_alpha_solve.py from the flat
 # gray capture (native width 1086). Real photos are ~2958 wide, so the captured glyph is
 # upscaled; width-scale + NCC-align sizes the silhouette for the detection match (removal
-# is the template-free glyph-bbox footprint mask).
+# aligns this alpha to the detector's match box; see footprint_mask).
 _ALPHA_NATIVE_WIDTH = 1086
 _ALPHA_WIDTH_FRAC = 0.3195  # asset width / image width -- sizes the detection silhouette
 _ALPHA_HEIGHT_FRAC = 0.0378

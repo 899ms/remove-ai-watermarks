@@ -18,6 +18,7 @@ from remove_ai_watermarks._internal.constants import (
     C2PA_AI_TOOLS,
     C2PA_AI_VENDORS,
     C2PA_CHUNK_TYPE,
+    C2PA_CLAIM_GENERATOR_PLATFORMS,
     C2PA_IDENTITY_AI_ORGS,
     C2PA_ISSUERS,
     C2PA_SIGNATURES,
@@ -334,6 +335,40 @@ def c2pa_info_has_invalid_credential(info: dict[str, Any]) -> bool:
         or info.get("c2pa_signature") == "invalid"
         or info.get("c2pa_signer_validity") == "invalid"
     )
+
+
+def c2pa_credential_level(info: dict[str, Any]) -> str:
+    """Return invalid, verified, or unverified for provenance attribution.
+
+    ``verified`` means the reader tied this manifest to these bytes: the hard binding
+    matched and the claim signature validated. Signer trust is deliberately NOT a
+    condition -- no trust anchors ship, so gating on it made this branch unreachable.
+    Read the trust-anchor paragraph in docs/module-internals.md before changing this.
+    """
+    if c2pa_info_has_invalid_credential(info):
+        return "invalid"
+    if info.get("c2pa_integrity") == "valid" and info.get("c2pa_signature") == "valid":
+        return "verified"
+    return "unverified"
+
+
+def claim_generator_platform(generator: str | None) -> str | None:
+    """Resolve a distinctive C2PA claim generator to its user-facing product."""
+    if not generator:
+        return None
+    lowered = generator.lower()
+    return next((platform for token, platform in C2PA_CLAIM_GENERATOR_PLATFORMS if token in lowered), None)
+
+
+_VENDOR_PLATFORM_NEEDLES = tuple(
+    (vendor.needle.casefold(), vendor.platform) for vendor in C2PA_AI_VENDORS if vendor.platform and vendor.needle
+)
+
+
+def c2pa_vendor_platform(text: str) -> str | None:
+    """Platform of the first C2PA AI vendor whose needle appears in ``text``, case-insensitively."""
+    folded = text.casefold()
+    return next((platform for needle, platform in _VENDOR_PLATFORM_NEEDLES if needle in folded), None)
 
 
 def c2pa_info_has_invismark(info: dict[str, Any]) -> bool:

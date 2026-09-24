@@ -16,7 +16,13 @@ datasets:
   - detection-datasets/coco
 ---
 
-# Photo AI-versus-camera classifier
+# Photo AI-versus-camera classifier (archived)
+
+> **Archived / legacy as of 2026-09-20. Not recommended for new integrations.**
+> This model repository is retained for reproducibility and compatibility with
+> existing users. Published weights and historical revisions remain available.
+> The documentation and measurements below describe the archived model, not
+> a current recommendation. No replacement model is linked at this time.
 
 Two heads, one call. Model 1 decides whether a **photograph** looks generated
 or camera-like. Model 2 names a provider only after Model 1 is DEFINITELY AI.

@@ -4,16 +4,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from remove_ai_watermarks._internal.constants import SUPPORTED_FORMATS
+from remove_ai_watermarks._internal.constants import JPEG_SUFFIXES, SUPPORTED_FORMATS
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-_PIL_FORMAT_BY_SUFFIX = {
-    ".jpg": "JPEG",
-    ".jpeg": "JPEG",
-    ".png": "PNG",
-}
 
 
 def is_supported_format(file_path: Path) -> bool:
@@ -27,4 +21,4 @@ def get_image_format(file_path: Path) -> str:
     The metadata writer only has specialized PNG and JPEG paths. Other accepted
     inputs therefore use its PNG fallback, matching the established API contract.
     """
-    return _PIL_FORMAT_BY_SUFFIX.get(file_path.suffix.casefold(), "PNG")
+    return "JPEG" if file_path.suffix.casefold() in JPEG_SUFFIXES else "PNG"

@@ -32,6 +32,18 @@ from remove_ai_watermarks.metadata import (
 SAMPLES_DIR = Path(__file__).resolve().parent.parent / "data" / "fixtures" / "provenance"
 
 
+@pytest.mark.parametrize("suffix", [".jpe", ".jfif"])
+def test_jpeg_alias_metadata_strip_preserves_image_scan(tmp_path: Path, suffix: str) -> None:
+    source = tmp_path / f"source{suffix}"
+    output = tmp_path / f"clean{suffix}"
+    Image.new("RGB", (48, 32), (20, 80, 160)).save(source, format="JPEG")
+    original = source.read_bytes()
+
+    remove_ai_metadata(source, output)
+
+    assert output.read_bytes() == original
+
+
 def _png_chunk(kind: bytes, payload: bytes, *, corrupt_crc: bool = False) -> bytes:
     """Encode one PNG chunk, optionally corrupting its CRC."""
     import zlib

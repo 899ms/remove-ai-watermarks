@@ -267,9 +267,8 @@ def _video_mark_frame(key: str, w: int, h: int) -> np.ndarray:
     if key == "sora":
         tmpl, scale, x, y = templates["sora-icon"], 0.10, int(w * 0.72), int(h * 0.90)
     elif key == "veo":
-        # The legacy "Veo" TEXT form: a perfect synthetic diamond also matches the
-        # Sora icon template (both are 4-point stars) and table order hands the
-        # tie to Sora, so the gallery carries the discriminative text variant.
+        # Keep the legacy text variant in the generated gallery. The provider
+        # original and the cross-match regression exercise the current diamond.
         tmpl = templates["veo-text"]
         th = max(6, round(14 * short / 720))
         tw = max(1, round(tmpl.shape[1] * th / tmpl.shape[0]))

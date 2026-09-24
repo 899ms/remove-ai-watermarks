@@ -318,7 +318,7 @@ def _select_stable_visible_mark(
     ]
     | None
 ):
-    """Select the first stable provider result in the public specificity order."""
+    """Select a stable mark, resolving Google Veo/Sora cross-matches."""
     for candidate_mark in candidate_marks:
         candidate_scan = scans[candidate_mark]
         candidate_regions, candidate_padding, candidate_mask_style = _visible_removal_plan(
@@ -327,6 +327,11 @@ def _select_stable_visible_mark(
             markers,
         )
         if any(region is not None for region in candidate_regions):
+            if candidate_mark == "sora" and "veo" in candidate_marks and _google_veo_provenance(markers):
+                veo_scan = scans["veo"]
+                veo_regions, veo_padding, veo_mask_style = _visible_removal_plan("veo", veo_scan, markers)
+                if _veo_explains_sora(candidate_regions, veo_regions):
+                    return "veo", veo_scan, veo_regions, veo_padding, veo_mask_style
             return (
                 candidate_mark,
                 candidate_scan,
@@ -337,17 +342,52 @@ def _select_stable_visible_mark(
     return None
 
 
+def _google_veo_provenance(markers: dict[str, str]) -> bool:
+    """Whether verified C2PA names Google Veo and not OpenAI Sora."""
+    from remove_ai_watermarks._internal.c2pa import c2pa_credential_level
+    from remove_ai_watermarks.video_visible import has_sora_provenance, has_veo_provenance
+
+    return (
+        c2pa_credential_level(markers) == "verified"
+        and has_veo_provenance(markers)
+        and not has_sora_provenance(markers)
+    )
+
+
+def _veo_explains_sora(
+    sora_regions: list[tuple[int, int, int, int] | None],
+    veo_regions: list[tuple[int, int, int, int] | None],
+) -> bool:
+    """Whether a Sora run is a cross-match of the Veo diamond.
+
+    Either the diamond sits inside most shared Sora boxes, or Veo holds every frame
+    while Sora drops out of some.
+    """
+    from remove_ai_watermarks.video_visible import region_intersection
+
+    shared = [
+        (sora, veo) for sora, veo in zip(sora_regions, veo_regions, strict=True) if sora is not None and veo is not None
+    ]
+    nested = sum(region_intersection(sora, veo) * 2 >= veo[2] * veo[3] for sora, veo in shared)
+    if shared and nested * 2 >= len(shared):
+        return True
+    return (
+        bool(veo_regions)
+        and all(region is not None for region in veo_regions)
+        and any(region is None for region in sora_regions)
+    )
+
+
 def _platform_from_video_metadata(markers: dict[str, str]) -> str | None:
     """Map supported C2PA-derived marker text to its generating platform."""
-    from remove_ai_watermarks._internal.constants import C2PA_AI_VENDORS
+    from remove_ai_watermarks._internal.c2pa import c2pa_vendor_platform, claim_generator_platform
 
-    marker_text = "\n".join(markers.values()).casefold()
-    if not marker_text:
-        return None
-    for vendor in C2PA_AI_VENDORS:
-        if vendor.platform is not None and vendor.needle is not None and vendor.needle.casefold() in marker_text:
-            return vendor.platform
-    return None
+    generator = markers.get("claim_generator", "")
+    return (
+        claim_generator_platform(generator)
+        or c2pa_vendor_platform(generator)
+        or c2pa_vendor_platform("\n".join(markers.values()))
+    )
 
 
 def inspect_video_metadata(source: str | Path) -> VideoMetadataReport:
@@ -459,8 +499,10 @@ def remove_video_visible(
     """Remove a supported visible AI wordmark from a video.
 
     ``mark="auto"`` scans every supported provider in one decode pass and selects
-    the first stable match in specificity order. Explicit marks are ``sora``,
-    ``veo``, ``seedance``, ``dola``, ``hailuo``, and ``kling``. The full
+    the first stable match in specificity order, except a Veo diamond nested in
+    a Sora cross-match or spanning the full clip against a partial Sora run,
+    with valid Google AI-video provenance. Explicit marks are
+    ``sora``, ``veo``, ``seedance``, ``doubao``, ``dola``, ``hailuo``, and ``kling``. The full
     sequence is scanned before pixels change, and only recurring candidates are
     accepted. Complete audio is copied without re-encoding; video is transcoded
     because the pixels change. ``temporal_consistency=True`` motion-aligns a

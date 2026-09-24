@@ -348,13 +348,22 @@ detected while `0.15` did not.
 
 [`video_visible.py`](../src/remove_ai_watermarks/video_visible.py) implements
 the first pixel stages for Sora, Veo, Seedance, Doubao, Dola, Hailuo AI, and Kling AI. The
-Sora detector searches a normalized frame with a fully synthetic
-mascot-and-text silhouette at several scales. The Veo detector uses separate
+Sora detector searches a normalized frame with fully synthetic
+mascot-and-text and mascot-only silhouettes at several scales. The mascot-only
+candidate must also correlate with the complete grayscale shape, including the
+paired eyes; top-hat edge correlation alone can score a Veo diamond or scene
+texture above the Sora confidence floor. The shape floor is calibrated below
+the independently rendered mascot and above the measured false matches.
+The Veo detector uses separate
 synthetic silhouettes for the current four-point diamond and legacy `Veo`
 text. Seedance uses a synthetic rounded boxed-`AI` silhouette, while Dola uses
-an OpenCV-font `Dola AI` silhouette. Hailuo AI uses a synthetic waveform,
+an OpenCV Hershey-font `Dola AI` silhouette. Hailuo AI uses a synthetic waveform,
 MINIMAX/Hailuo AI text, separator, and ring. Kling AI combines synthetic font
-and capitalization variants with a ring approximation of its swirl; the logo path rescues
+and capitalization variants with a ring approximation of its swirl. The Dola and
+Kling Hershey renders are frozen PNG assets drawn by OpenCV 4
+(`scripts/render_video_hershey_templates.py`): OpenCV 5 draws the same `putText`
+call smaller and heavier, and with runtime rendering the Dola gallery clip was
+selected as Kling; the logo path rescues
 wordmarks whose version or font differs, while the edge and white-label gates
 reject recurring scene texture. All fixed-mark searches are bounded to the
 expected lower-frame area and calibrated independently. A strong relocated Veo
@@ -369,6 +378,15 @@ takes the first stable result in specificity order (`sora`, `veo`, `seedance`,
 `doubao`, `dola`, `hailuo`, `kling`). An explicit mark uses the same scan path with one
 candidate. Removal also collects authoritative per-frame timestamps for the
 encoder, while identification omits that unused ffprobe pass.
+The one cross-match exception selects Veo with valid Google AI-video
+provenance and no Sora provenance when a stable Veo diamond is substantially
+contained within the Sora localization, or Veo is stable on every frame while
+Sora is not. Metadata alone never selects a visible mark.
+For metadata-only video identification, a recognized `claim_generator` takes
+precedence over certificate issuer names. Searching all marker values at once
+previously labeled a Google-generated video as OpenAI when both organizations
+appeared in its issuer field. Unknown generators still fall back to the
+existing issuer/marker registry.
 
 Every per-frame result is untrusted. Each provider's floors, minimum-run policy,
 fill padding and mask style are one row in `VISIBLE_MARK_POLICIES`, and every mark
@@ -472,6 +490,9 @@ the official C2PA registry. Refresh it with
 upstream schema invariants, records the exact source revision and writes a
 deterministic module. Runtime inspection remains offline, and registry membership
 is name-only evidence rather than proof that a compatible decoder ships.
+The GitHub API revision lookup sends `GITHUB_TOKEN` (or `GH_TOKEN`) when set,
+because the unauthenticated 60 requests/hour per IP limit is exhausted on
+shared CI runners; `.env.example` documents the variable.
 
 `com.microsoft.invismark.1` uses its block value as the
 pixel-watermark identifier in Microsoft Paint output. An InvisMark soft binding
@@ -515,7 +536,7 @@ reach high confidence.
 Read `untrusted` here as a missing input, not a finding: nothing was checked,
 because there was nothing to check against. If a maintained trust bundle is ever
 configured, that stops being true and the confidence mapping in
-`_c2pa_credential_level` must be re-read, because only then does a failed trust
+`c2pa_credential_level` (in `_internal/c2pa.py`) must be re-read, because only then does a failed trust
 check mean the signer was rejected. Shipping or fetching an official trust bundle
 requires a separate update, provenance, and availability policy; do not silently
 convert `signingCredential.untrusted` into trusted based on a vendor-name match.
@@ -1464,7 +1485,7 @@ measured against the cleared provider fixture (0.848) and 132 decoded tracked
 controls other than that positive (maximum 0.516 on 2026-09-10, zero fires).
 NCC is not portable across OpenCV builds: issue 108 reported 0.81 on
 `data/fixtures/provenance/chatgpt-1.png` (sand and denim, no glyph) while this
-tree's OpenCV 4.11 scores 0.437 on the same file. A fire also requires
+tree's OpenCV scores 0.437 on the same file (4.11, and again 5.0 on 2026-09-23). A fire also requires
 binarized IoU of the bright residual with the three-lobe silhouette at or
 above 0.70; the true fixture stays at or above 0.75 down to 512 px, and
 chatgpt-1 sits at 0.55. `provenance_ncc_factor` remains 1.0, so OpenAI C2PA
@@ -1552,6 +1573,11 @@ and right edges. OpenCV then had no context beyond either edge and filled the ho
 with large triangular wedges. The aligned sparse mask keeps both frame edges
 untouched and still clears the detector. `force` cannot align a missing detection,
 so it retains the shared geometry-box fallback.
+
+Doubao keeps the original low-saturation scan for pale corners. When enough of
+its corner is strongly colored and that scan falls below the strict gate, a
+wider color filter searches for white glyphs tinted by the background. The
+stronger scan wins, preserving previously accepted pale-background marks.
 
 Kling keeps the pixel-derived footprint for release-specific strokes, then unions
 it with the synthetic alpha aligned to the detector's winning match box. This is
@@ -1697,6 +1723,8 @@ public example image was reconstructed by hand. `scripts/build_openart_alpha.py`
 instead PROCEDURALLY DRAWS a reconstruction of OpenArt's own public brand mark
 (the bowtie icon + wordmark shown on openart.ai's own marketing pages) as a
 grayscale alpha PNG, the same bundled-asset contract every other engine uses.
+Its wordmark is a Hershey `putText` render, so like the video Hershey templates
+the recipe refuses anything but OpenCV 4.x, whose output the committed asset is.
 
 **CALIBRATION IS PROVISIONAL, NOT MEASURED.** There is no recall/precision
 sweep like Doubao's or the generic-label engine's: no positive corpus exists

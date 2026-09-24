@@ -66,8 +66,9 @@ _MIN_DETECT_SHORT_SIDE = 200
 # Doubao stays at 0.70: both its bands return more true marks than false fills, so
 # tightening would cost 11 genuine recoveries to prevent 8 false ones.
 #
-# Jimeng moves to 0.85. Its relaxed detector does not key on the "★ 即梦AI" wordmark
-# any more -- it keys on "some text in the bottom-right corner": of 68 false
+# Jimeng moved to 0.85 (superseded: it is back at 0.70 now that the rival margin
+# handles the Doubao cross-fire; see jimeng_engine.PROVENANCE_NCC_FACTOR). Its relaxed detector does not
+# key on the "★ 即梦AI" wordmark any more -- it keys on "some text in the bottom-right corner": of 68 false
 # additions, 33 were DOUBAO marks and 17 were other vendors' AI labels (千问, 百度,
 # 星绘, 抖音). 45 of those 68 fill a corner nothing else would touch (the other 23
 # are harmless -- doubao fires strictly there and fills the same box anyway). At

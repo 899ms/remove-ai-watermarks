@@ -102,7 +102,11 @@ def get_device() -> str:
     if torch.cuda.is_available() and _cuda_works():  # type: ignore[union-attr]
         return "cuda"
     if _has_nvidia_gpu():
-        logger.warning("NVIDIA GPU detected, but the installed PyTorch build has no working CUDA backend")
+        logger.warning(
+            "NVIDIA GPU detected, but the installed PyTorch build (torch %s, CUDA %s) has no working CUDA backend",
+            torch.__version__,  # type: ignore[union-attr]
+            torch.version.cuda,  # type: ignore[union-attr]
+        )
     return "cpu"
 
 

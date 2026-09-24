@@ -9,10 +9,12 @@ import numpy as np
 import pytest
 
 from remove_ai_watermarks import watermark_registry as registry
+from remove_ai_watermarks._text_mark_engine import TextMarkEngine
 from remove_ai_watermarks.doubao_engine import (
     _ALPHA_HEIGHT_FRAC,
     _ALPHA_NATIVE_WIDTH,
     _ALPHA_WIDTH_FRAC,
+    _CONFIG,
     DETECT_NCC_THRESHOLD,
     DoubaoEngine,
     _alpha_template,
@@ -24,10 +26,11 @@ from remove_ai_watermarks.image_io import load_image_bgr
 SAMPLE = Path(__file__).resolve().parents[1] / "data" / "fixtures" / "provenance" / "doubao-1.png"
 
 
-def _compose(w: int, h: int, bg: float = 100.0):
+def _compose(w: int, h: int, bg: float | tuple[int, int, int] = 100.0):
     """Composite the real alpha (scaled to width ``w``) onto a flat bg.
     Returns ``(watermarked_uint8, mark_bool_mask)``."""
-    img = np.full((h, w, 3), bg, np.float32)
+    img = np.empty((h, w, 3), np.float32)
+    img[:] = bg
     at = _alpha_template()
     gw, gh = int(_ALPHA_WIDTH_FRAC * w), int(_ALPHA_HEIGHT_FRAC * w)
     margin = int(0.015 * w)
@@ -59,6 +62,19 @@ class TestLocate:
 
 
 class TestDetect:
+    def test_tinted_glyph_on_saturated_background(self):
+        """A translucent white glyph stays recognizable after a yellow background tints it."""
+        wm, _mark = _compose(_ALPHA_NATIVE_WIDTH, _ALPHA_NATIVE_WIDTH, bg=(20, 190, 240))
+        eng = DoubaoEngine()
+        clean = np.empty_like(wm)
+        clean[:] = (20, 190, 240)
+        assert not eng.detect(clean).detected
+        assert eng.detect(wm).detected
+        out, region = registry.get_mark("doubao").remove(wm, backend="cv2")
+        assert region is not None
+        assert not eng.detect(out).detected
+        assert np.array_equal(wm[:1024, :1024], out[:1024, :1024])
+
     def test_clean_gradient_not_detected(self):
         eng = DoubaoEngine()
         ramp = np.tile(np.linspace(0, 255, 1024, dtype=np.uint8), (1024, 1))
@@ -104,9 +120,11 @@ class TestDetect:
 @pytest.mark.skipif(not SAMPLE.exists(), reason="sample image not present")
 class TestRealSample:
     def test_detects_watermark(self):
-        det = DoubaoEngine().detect(load_image_bgr(SAMPLE))
+        image = load_image_bgr(SAMPLE)
+        det = DoubaoEngine().detect(image)
         assert det.detected
         assert det.confidence >= DETECT_NCC_THRESHOLD
+        assert det.confidence == TextMarkEngine(_CONFIG).detect(image).confidence
 
     def test_fill_lowers_confidence(self):
         img = load_image_bgr(SAMPLE)

@@ -47,9 +47,11 @@ CALIBRATION CAVEAT: ``DETECT_NCC_THRESHOLD`` below is fit on a SYNTHETIC corpus 
 scored against generated clean negatives and the six existing brand marks' own
 composited examples as a false-positive/rival check) -- see
 ``scripts/calibrate_generic_ai_label.py`` for the recall/precision table it produced.
-No real "AI生成"-generator screenshot (vivo/Xiaomi/other gallery output) was available
-to calibrate against. Treat this detector as WEAKER evidence than the brand-tuned
-engines until it is recalibrated on real captures; the ``rivals`` margin below exists
+At initial calibration, no real "AI生成"-generator screenshot was available. A
+later retained-corpus review confirmed dark, boxed, and longer-text labels that
+this template misses; they are not calibration positives for this silhouette.
+Treat this detector as WEAKER evidence than the brand-tuned engines until it is
+recalibrated on independently labeled real captures; the ``rivals`` margin below exists
 specifically so a genuine Doubao/Jimeng/Qwen/Baidu/Kling/Yuanbao mark -- every one of
 which literally contains the substring "AI生成" in its own glyphs -- is attributed to
 its own tuned engine instead of double-firing here.

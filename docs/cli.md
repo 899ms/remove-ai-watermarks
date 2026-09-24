@@ -393,10 +393,11 @@ remove-ai-watermarks video visible hailuo.mp4 --mark hailuo -o hailuo_clean.mp4
 remove-ai-watermarks video visible kling.mp4 --mark kling -o kling_clean.mp4
 ```
 
-The command supports the moving Sora mascot and wordmark, two Veo
+The command supports the moving Sora mascot with or without its wordmark, two Veo
 corner variants, the Seedance boxed `AI` label, the `Dola AI` text label, the
 composite `MINIMAX | hailuo AI` label, and the bottom-right Kling AI label. Sora
-searches the whole frame at multiple scales. The other detectors search bounded
+searches the whole frame at multiple scales and verifies the complete mascot
+shape when the wordmark is absent. The other detectors search bounded
 lower-frame regions with separate synthetic silhouettes. Kling additionally
 requires its bright low-saturation label near the frame edge. Every mark
 requires a spatially recurring candidate across adjacent frames. Fixed marks
@@ -407,8 +408,10 @@ provenance-aware marks; metadata alone never creates a detection.
 `--mark auto` is the default. It evaluates all providers in one decode pass and
 selects the first stable match in specificity order: Sora, Veo, Seedance,
 Doubao, Dola, Hailuo AI, then Kling AI. Their confidence scores are independently calibrated and
-are not compared across providers. Pass an explicit `--mark` to scan only that
-provider.
+are not compared across providers. Valid Google AI-video provenance resolves a
+stable Sora/Veo match in favor of Veo when their regions overlap or Veo spans
+the full clip while Sora does not; it does not create a visual detection.
+Pass an explicit `--mark` to scan only that provider.
 
 The video stream is transcoded and the complete original audio stream is
 copied without truncating an audio tail that extends beyond the final video

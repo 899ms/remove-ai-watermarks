@@ -619,8 +619,8 @@ def _text_mark(
     ``product`` defaults to the key (one mark, one product); pass it only when two
     marks share a product. ``manufacturer`` is separate because unrelated companies
     use the same TC260 standard. ``label_regime`` and ``provenance_signals`` default
-    to the China-AIGC label because every text mark registered so far except Samsung
-    and Microsoft uses it.
+    to the China-AIGC label because every text mark registered so far except Samsung,
+    Microsoft, generic_ai_label and OpenArt uses it.
     """
     return KnownMark(
         key,
@@ -828,7 +828,8 @@ _REGISTRY: tuple[KnownMark, ...] = (
         label_regime=None,
         provenance_signals=(),
     ),
-    # Same product as the Jimeng wordmark -- the one pair that cross-relaxes.
+    # Same product as the Jimeng wordmark, so a strict wordmark relaxes it (LiblibAI's
+    # wordmark and pill share a product the same way).
     KnownMark(
         "jimeng_pill",
         "Jimeng AI生成 pill",
@@ -1126,6 +1127,7 @@ def remove_auto_marks_detailed(
                 resolved_backend,
                 bbox,
                 exc,
+                exc_info=True,
             )
 
         removals.append(

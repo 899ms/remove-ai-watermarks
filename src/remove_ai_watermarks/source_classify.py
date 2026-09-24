@@ -7,6 +7,7 @@ removed. Call it explicitly; ``identify`` never imports or runs it.
 
 from __future__ import annotations
 
+import logging
 import math
 import os
 from dataclasses import dataclass
@@ -18,6 +19,8 @@ from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
+
+log = logging.getLogger(__name__)
 
 SOURCE_CLASSIFY_EXTRA = "'remove-ai-watermarks[source-classify]'"
 WEIGHTS_ENV = "RAIW_SOURCE_CLASSIFY_WEIGHTS"
@@ -95,13 +98,17 @@ def _model_path() -> Path:
         hub: Any = import_module("huggingface_hub")
     except ModuleNotFoundError as error:
         raise RuntimeError(f"Install {SOURCE_CLASSIFY_EXTRA} to download the source classifier") from error
-    return Path(
-        hub.hf_hub_download(
-            repo_id=WEIGHTS_REPO,
-            filename=MODEL_FILE,
-            revision=WEIGHTS_REVISION,
+    try:
+        return Path(
+            hub.hf_hub_download(
+                repo_id=WEIGHTS_REPO,
+                filename=MODEL_FILE,
+                revision=WEIGHTS_REVISION,
+            )
         )
-    )
+    except Exception as exc:
+        log.warning("Downloading %s from %s@%s failed: %s", MODEL_FILE, WEIGHTS_REPO, WEIGHTS_REVISION, exc)
+        raise
 
 
 @lru_cache(maxsize=2)

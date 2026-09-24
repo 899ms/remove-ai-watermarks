@@ -179,7 +179,7 @@ def _run_ffprobe(
     """Run one ffprobe query with shared logging and failure handling."""
     ffprobe = shutil.which("ffprobe")
     if ffprobe is None:
-        log.warning("ffprobe is unavailable; cannot inspect %s", purpose)
+        log.warning("ffprobe is unavailable; cannot inspect %s of %s", purpose, source)
         return None
     command = [ffprobe, "-v", "error", *arguments, "-of", output_format, str(source)]
     result = subprocess.run(  # noqa: S603

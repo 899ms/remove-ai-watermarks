@@ -13,8 +13,12 @@ sys.path.insert(0, str(SCRIPTS))
 import publish_source_classify_hf as publish  # noqa: E402
 
 
-def test_hub_id_is_the_source_classify_repo() -> None:
-    assert publish.HUB_REPO == "wiltodelta/raiw-source-classify"
+def test_hub_ids_match_the_runtime_loader() -> None:
+    # The workflow runs this script with --no-project, so it cannot import the package constants.
+    from remove_ai_watermarks.source_classify import MODEL_FILE, WEIGHTS_REPO
+
+    assert publish.HUB_REPO == WEIGHTS_REPO
+    assert publish.MODEL_FILE == MODEL_FILE
 
 
 def test_stage_release_copies_only_public_artifacts(tmp_path: Path) -> None:

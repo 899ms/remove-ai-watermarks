@@ -547,6 +547,8 @@ It reports a recurring registered mark and supported AI metadata as positive
 signals. When neither is present, `is_ai_generated` is `None`, never `False`.
 The absence of a public local video SynthID decoder is included in `caveats`.
 Pass `check_visible=False` for a bounded metadata-only inspection.
+For metadata-only platform attribution, a recognized C2PA claim generator
+takes precedence over certificate issuers when a manifest names both.
 
 For normal product integration, use the complete locally verifiable pipeline:
 
@@ -709,7 +711,10 @@ isolated lookalike in one frame is not enough to authorize inpainting.
 selects the first stable match in specificity order (`sora`, `veo`, `seedance`,
 `doubao`, `dola`, `hailuo`, `kling`). Provider confidence values are calibrated
 independently and are not compared across detectors. Pass one of those explicit
-values to restrict the scan to a single provider. The Veo detector recognizes
+values to restrict the scan to a single provider. A stable Veo diamond takes
+precedence over Sora only with valid Google AI-video provenance, no Sora
+provenance, and either substantial overlap or a full-clip Veo run against a
+partial Sora run. The Veo detector recognizes
 the current four-point diamond and the
 legacy `Veo` text. Seedance recognizes the boxed `AI` label, Doubao recognizes
 the fixed `豆包AI生成` label, and Dola recognizes

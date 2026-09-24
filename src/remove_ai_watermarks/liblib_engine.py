@@ -6,7 +6,8 @@ corner -- the locate box is horizontally centered). Current outputs can instead
 carry a compact top-left ``AI生成`` pill. The wordmark detector matches the
 bundled font-rendered "LiblibAI" silhouette (the triangle logo is NOT rendered
 -- logos vary, the wordmark discriminates); removal is the shared **localize ->
-fill** (the glyph blob covers logo + wordmark, both bright).
+fill** (the fill is the detector's match box, stretched left to take in the
+triangle logo).
 
 This module supplies LiblibAI's tuned :class:`TextMarkConfig`
 (``assets/liblib_alpha.png`` from ``scripts/render_vendor_silhouettes.py``,

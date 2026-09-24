@@ -23,6 +23,7 @@ from PIL import Image
 from remove_ai_watermarks._internal.two_stage_pipeline import (
     _GLOBAL_NEGATIVE,
     _GLOBAL_PROMPT,
+    DiffSynthVramConfig,
     TwoStageZImagePipeline,
     _cache_static_prompt_embeddings,
     _resize_to_target,
@@ -104,7 +105,7 @@ class QwenZImagePipeline(TwoStageZImagePipeline):
             total_memory_gib=self._total_vram_gib(),
         )
 
-    def _qwen_vram_config(self) -> dict[str, Any]:
+    def _qwen_vram_config(self) -> DiffSynthVramConfig:
         import torch
 
         if self._keep_global_models_resident():

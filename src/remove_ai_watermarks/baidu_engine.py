@@ -7,8 +7,8 @@ two-component template (text + pill tag) was measured and REJECTED -- the solid
 white pill is a bright-blob magnet and both front-ends scored the clean arm at
 cohort levels (tophat clean p95 0.445 / gray clean p95 0.487 vs cohort ~0.5,
 2026-07-22). The text-only silhouette separates cleanly (below). The white tag
-is still removed with the mark: the fill blob covers both bright components in
-the corner box.
+is still removed with the mark: the fill is the detector's match box, stretched
+right to the corner end of the locate box (see :meth:`BaiduEngine._footprint_rect`).
 
 Removal is the shared **localize -> fill** (:meth:`footprint_mask` ->
 ``region_eraser``). This module supplies only Baidu's tuned
@@ -17,7 +17,7 @@ synthetic silhouette from ``scripts/render_vendor_silhouettes.py``, never cut
 from an upload).
 
 The detector uses a synthetic silhouette, short-side geometry, a strict
-confidence gate, and a Qwen rival margin. The footprint covers both the text
+confidence gate, and Doubao and Qwen rival margins. The footprint covers both the text
 run and its adjacent pill tag.
 """
 # The module-level _alpha_template / _glyph_silhouette / _template_match_score below

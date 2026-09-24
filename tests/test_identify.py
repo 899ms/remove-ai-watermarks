@@ -886,7 +886,7 @@ class TestIdentifyRealSamples:
         assert any("only the signing time is unproven" in caveat for caveat in report.caveats)
 
     def test_no_committed_fixture_reports_a_trusted_signer(self):
-        """The reachability guard for :func:`_c2pa_credential_level`.
+        """The reachability guard for :func:`c2pa_credential_level`.
 
         The SDK ships no production trust anchors, so ``signingCredential.trusted``
         appears in no default installation. Gating high confidence on it made that branch

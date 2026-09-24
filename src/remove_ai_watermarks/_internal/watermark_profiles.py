@@ -1,10 +1,11 @@
 """Project-owned configuration for invisible-watermark regeneration profiles.
 
 Three profiles remain, and all are CUDA-only: ``qwen-zimage`` (the default),
-``sdxl-zimage``. The older ``controlnet``, ``sdxl``, ``qwen`` and ``default`` profiles
-were removed rather than kept as a CPU path, because none of them matched the two-stage
-recipe's face preservation and keeping them implied a quality this library no longer
-offers. Removing invisible watermarks therefore needs a CUDA device; the visible-mark
+``sdxl-zimage`` and ``chroma-zimage``, plus the per-vendor ``auto`` selector. The
+older ``controlnet``, ``sdxl``, ``qwen`` and ``default`` profiles were removed rather
+than kept as a CPU path, because none of them matched the two-stage recipe's face
+preservation and keeping them implied a quality this library no longer offers.
+Removing invisible watermarks therefore needs a CUDA device; the visible-mark
 registry and every identify path still run anywhere.
 """
 
@@ -75,7 +76,7 @@ SDXL_LIGHTNING_PATTERN = "sdxl_lightning_4step_lora.safetensors"
 
 # All profiles are certified at a fixed seed because SynthID removal near the
 # strength floor is seed-dependent. The step count and CFG are not settable at all --
-# each stage owns them (``GLOBAL_STEPS`` / ``FACE_STEPS`` in qwen_zimage_pipeline).
+# each stage owns them (``GLOBAL_STEPS`` in qwen_zimage_pipeline, ``FACE_STEPS`` in two_stage_pipeline).
 PROFILE_SEED = 0
 
 # sdxl-zimage runs the qwen-zimage recipe on an SDXL global stage, and strength is

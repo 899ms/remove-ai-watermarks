@@ -71,7 +71,14 @@ Known examples:
 
 - The Microsoft detector covers one calibrated top-right white pill. Microsoft's
   [documented feature](https://support.microsoft.com/en-us/topic/include-a-watermark-when-content-from-microsoft-365-is-ai-generated-b00a656e-ae61-4692-8086-67d004421030)
-  can instead use a Copilot icon, `AI-Generated` text, or another position.
+  can instead use a Copilot icon, `AI-Generated` text, or another position. A
+  beige pill with dark `Made with AI` text is also not covered by the current
+  white-pill silhouette.
+- The generic `AI生成` template misses some dark, boxed, and longer
+  `内容由AI生成` labels. Metadata may still report AI provenance; these visible
+  variants need independent calibration before automatic removal. Doubao's
+  bottom-right template also remains specific to its measured glyph layout,
+  although it now handles marks tinted by saturated backgrounds.
 - Samsung detection is calibrated for the Italian
   `Contenuti generati dall'AI` text variant.
 - The Jimeng top-left pill has a weak visual detector and is intentionally
@@ -436,7 +443,7 @@ The `video metadata` command and high level video API inspect and strip
 supported AI provenance metadata without transcoding streams.
 
 `video visible` and `remove_video_visible` additionally support the moving
-Sora 2 mascot and wordmark, the current Veo four-point diamond, the legacy
+Sora 2 mascot with or without its wordmark, the current Veo four-point diamond, the legacy
 `Veo` text, the Seedance boxed `AI` label, the fixed Doubao `豆包AI生成`
 label, the fixed `Dola AI` text, the Hailuo AI
 MINIMAX/Hailuo AI composite label, and the bottom-right Kling AI `KLING AI` or
@@ -450,9 +457,18 @@ The default auto-router evaluates all detectors in one decode pass but does not
 rank their raw confidence values. Those scores are provider-specific and known
 to cross-match in some layouts, so the router applies the independent temporal
 policies and selects the first stable result in specificity order. Use an
-explicit mark when the provider is already known.
+explicit mark when the provider is already known. One narrow exception resolves
+a Sora/Veo cross-match in favor of a stable Veo diamond when valid Google
+AI-video provenance corroborates it, Sora provenance does not, and either the
+regions overlap or Veo spans the full clip while Sora does not.
+When Veo has no stable visual run, this exception does not suppress Sora.
+Mascot-only Sora candidates therefore also require a complete-shape match:
+the edge-only template previously accepted scene texture on a Google-signed
+clip and reappeared after Veo removal stripped the Google provenance. The
+measured clips now scan without that false Sora mark, but unmeasured scenes
+can still cross-match. Check the pixels before selecting an explicit mark.
 Historical Sora Turbo exports use a small OpenAI swirl in the corner rather
-than the moving mascot-and-wordmark design; that earlier variant is not
+than the moving Sora 2 mascot design; that earlier variant is not
 detected by the `sora` video mark. Hailuo AI and Kling AI coverage is specific to the
 verified lower-edge layouts; a new provider layout needs a separate calibrated
 silhouette. Other provider video labels are not supported yet. Google video

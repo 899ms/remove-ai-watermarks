@@ -8,7 +8,13 @@ tags:
   - open-set-classification
 ---
 
-# RAIW source-pipeline classifier
+# RAIW source-pipeline classifier (archived)
+
+> **Archived / legacy as of 2026-09-20. Not recommended for new integrations.**
+> This model repository is retained for reproducibility and compatibility with
+> existing users. Published weights and historical revisions remain available.
+> The documentation and measurements below describe the archived model, not
+> a current recommendation. No replacement model is linked at this time.
 
 This is a compact, abstaining pixel-forensics classifier for three labels:
 `openai`, `google`, and `unknown`. It is intended for original-export-looking
