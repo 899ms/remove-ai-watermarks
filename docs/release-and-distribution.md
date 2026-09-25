@@ -102,7 +102,15 @@ catalog, paths, hashes, embeddings, and feature caches are outside this flow.
 The workflow is manual and requires the model-freeze release tag plus an
 explicit `publish` confirmation. Keep model-freeze GitHub releases marked as
 pre-releases so a model artifact cannot replace the latest package release in
-GitHub's release UI.
+GitHub's release UI. Package publication and distribution jobs run only for
+non-prerelease `v*` tags, so model-only prereleases cannot enter PyPI or the
+package fan-out.
+
+The newer `wiltodelta/openai-google-image-source-classifier` uses the separate
+`publish-image-source-hf.yml` workflow. Its release asset is only the
+hash-verified derivative `openai-google-source-v1.npz`; the workflow uploads
+that artifact plus `docs/image-source-hf/README.md` and `metrics.json`. The
+training corpus does not enter the library checkout or this release.
 
 If a distribution job fails because a repository or Hugging Face credential is
 invalid, rotate the corresponding GitHub secret and rerun the failed job. A

@@ -10,6 +10,8 @@ permissions:
 
 jobs:
   publish:
+    # Model-only prereleases are not Python package releases.
+    if: ${{ startsWith(github.event.release.tag_name, 'v') && !github.event.release.prerelease }}
     runs-on: ubuntu-latest
     environment: pypi
     steps:

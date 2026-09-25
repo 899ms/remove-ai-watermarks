@@ -21,6 +21,8 @@ on:
 
 jobs:
   resolve:
+    # Model-only prereleases must not reach PyPI, Homebrew, Spaces, or ComfyUI.
+    if: ${{ github.event_name != 'release' || (startsWith(github.event.release.tag_name, 'v') && !github.event.release.prerelease) }}
     runs-on: ubuntu-latest
     # Thirty attempts may spend up to 20 seconds each in the JSON request,
     # simple-index request, and inter-attempt delay. Leave bounded headroom.
