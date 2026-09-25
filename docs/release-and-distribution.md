@@ -104,7 +104,9 @@ explicit `publish` confirmation. Keep model-freeze GitHub releases marked as
 pre-releases so a model artifact cannot replace the latest package release in
 GitHub's release UI. Package publication and distribution jobs run only for
 non-prerelease `v*` tags, so model-only prereleases cannot enter PyPI or the
-package fan-out.
+package fan-out. A draft release keeps its target commit when published; target
+the commit containing those guards before creating a model-only release, not
+merely the then-current `main` after the draft already exists.
 
 The newer `wiltodelta/openai-google-image-source-classifier` uses the separate
 `publish-image-source-hf.yml` workflow. Its release asset is only the

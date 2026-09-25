@@ -29,6 +29,11 @@ not a SynthID detector and does not establish watermark presence or absence.
 See [source-pipeline classification](source-classify.md) for the result fields,
 model pin, evaluation boundary, and offline weights override.
 
+For the newer, separately pinned model, call `raiw.classify_image_source(path)`.
+It returns `label`, `reason`, branch `scores`, and
+`watermark_truth="unknown"`. A simultaneous provider match abstains with
+`reason="conflict"`; it is never reported as SynthID evidence.
+
 ## Remove visible marks
 
 Install `remove-ai-watermarks[visible]` before using the visible-removal API.

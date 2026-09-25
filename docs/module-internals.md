@@ -1161,6 +1161,17 @@ and the threshold mutation guard live in `tests/test_source_classify.py`;
 evaluation and attack limits live in
 [`synthid-classifiers.md`](synthid-classifiers.md).
 
+`source_classify_v2.py` provides a separate, opt-in `classify_image_source`
+entry point. Its NPZ schema contains only complex spectral filters, spatial
+templates, and thresholds; the runtime pins the Hub revision and SHA-256,
+rejects unknown fields and invalid shapes, and never loads pickles. The result
+has `watermark_truth="unknown"` even when a provider pattern matches. A
+simultaneous provider match abstains. Tests in
+`tests/test_source_classify_v2.py` cover the public seam and changed-threshold
+behavior; the [model card](image-source-hf/README.md) records the frozen
+aggregate evidence and limits. This does not change the earlier
+`classify_source` API.
+
 The CLIP loader suppresses discarded random parameter initialization with
 Transformers' `no_init_weights` context before applying the complete frozen
 state dict. Normal `CLIPModel(config)` construction initialized 427 million

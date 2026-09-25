@@ -1,6 +1,6 @@
 # Source-pipeline classification
 
-`classify_source` is an opt-in, metadata-free pixel classifier for images that
+`classify_source` is the earlier, opt-in, metadata-free pixel classifier for images that
 still resemble an original provider export. It returns `openai`, `google`, or
 an explicit `unknown` abstention.
 
@@ -40,3 +40,23 @@ The model is useful as a routing suggestion for a processing workflow or as one
 probabilistic signal in a broader forensic report. Do not use it as evidence of
 authorship, fraud, policy compliance, provenance, or watermark presence. The
 published model card records the evaluation and robustness limits.
+
+## New image-source classifier
+
+`classify_image_source` is a separate, frozen model that incorporates selected
+spectral and spatial evidence from the earlier research. It does not silently
+change `classify_source` or its thresholds. Call it explicitly:
+
+```python
+result = raiw.classify_image_source("metadata-stripped.png")
+print(result.label)             # "openai" | "google" | "unknown"
+print(result.reason)            # "classified" | "abstained" | "conflict" | "feature_unavailable"
+print(result.watermark_truth)   # always "unknown"
+```
+
+Its first call downloads a hash-verified artifact from the immutable revision
+of [`wiltodelta/openai-google-image-source-classifier`](https://huggingface.co/wiltodelta/openai-google-image-source-classifier).
+For offline use, set `RAIW_IMAGE_SOURCE_WEIGHTS` to the NPZ file or its
+directory. It classifies likely export-source patterns in decoded pixels, not
+SynthID presence. The [model card](image-source-hf/README.md) records its
+aggregate tests and limitations.

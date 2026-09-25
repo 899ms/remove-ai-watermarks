@@ -56,6 +56,7 @@ explicitly names a tracked canonical result.
 | `retrain_photo_classify.py` | CPU-retrain the 2026-08-31 photo heads from a sha256-keyed cache pack, no images. |
 | `publish_photo_classify_hf.py` | Upload the photo-classify card and freeze weights to Hugging Face `wiltodelta/raiw-photo-classify`. Manual; the Action `publish-photo-classify-hf.yml` is the write-token path. |
 | `publish_source_classify_hf.py` | Upload the derivative source-pipeline model and its public card to Hugging Face `wiltodelta/raiw-source-classify`. Manual; the Action `publish-source-classify-hf.yml` is the write-token path. |
+| `publish_image_source_hf.py` | Upload only the hash-verified new image-source model and public card to `wiltodelta/openai-google-image-source-classifier`. Manual; `publish-image-source-hf.yml` is the write-token path. |
 | `verify_engine_selection_fixtures.py` | Verify hashes, dimensions, and prompt pairing in the tracked auto-engine content matrix. |
 
 ## Research and diagnostic prototypes
