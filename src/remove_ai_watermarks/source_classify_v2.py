@@ -12,7 +12,7 @@ from functools import lru_cache
 from hashlib import file_digest
 from importlib import import_module
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, get_args
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -51,6 +51,7 @@ CLAIM = "likely image source/export pattern; not SynthID detection"
 
 SourceLabel = Literal["openai", "google", "unknown"]
 SourceReason = Literal["classified", "abstained", "conflict", "feature_unavailable"]
+PROVIDERS = tuple(label for label in get_args(SourceLabel) if label != "unknown")
 
 
 @dataclass(frozen=True)

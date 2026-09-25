@@ -1166,7 +1166,8 @@ entry point. Its NPZ schema contains only complex spectral filters, spatial
 templates, and thresholds; the runtime pins the Hub revision and SHA-256,
 rejects unknown fields and invalid shapes, and never loads pickles. The result
 has `watermark_truth="unknown"` even when a provider pattern matches. A
-simultaneous provider match abstains. Tests in
+simultaneous provider match abstains. `PROVIDERS` exports only the calibrated
+provider labels for callers that route processing from a source hint. Tests in
 `tests/test_source_classify_v2.py` cover the public seam and changed-threshold
 behavior; the [model card](image-source-hf/README.md) records the frozen
 aggregate evidence and limits. This does not change the earlier

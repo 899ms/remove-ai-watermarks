@@ -61,6 +61,7 @@ def test_top_level_api_is_lazy_and_points_to_new_runtime() -> None:
 
     assert raiw.classify_image_source is model.classify_image_source
     assert raiw.ImageSourceClassification is model.ImageSourceClassification
+    assert model.PROVIDERS == ("openai", "google")
     assert len(model.WEIGHTS_REVISION) == 40
     assert all(character in "0123456789abcdef" for character in model.WEIGHTS_REVISION)
 
