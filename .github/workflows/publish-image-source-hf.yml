@@ -1,0 +1,59 @@
+name: Publish image-source classifier to Hugging Face
+
+# Manual only. The derivative weights live in a GitHub model-freeze release;
+# private training images and caches never enter this repository.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type publish"
+        required: true
+      weights_tag:
+        description: "GitHub Release tag holding openai-google-source-v1.npz"
+        required: true
+        default: image-source-freeze-2026-09-25-v1
+
+jobs:
+  publish:
+    if: ${{ github.event.inputs.confirm == 'publish' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      - name: Download derivative weights
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.inputs.weights_tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p weights
+          gh release download "$TAG" \
+            --repo "${{ github.repository }}" \
+            --pattern openai-google-source-v1.npz \
+            --dir weights
+          test -s weights/openai-google-source-v1.npz
+      - name: Verify artifact hash
+        run: |
+          set -euo pipefail
+          expected="$(jq -r .artifact_sha256 docs/image-source-hf/metrics.json)"
+          test "${#expected}" -eq 64
+          echo "$expected  weights/openai-google-source-v1.npz" | sha256sum --check
+      - name: Publish to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "${HF_TOKEN:-}" ]; then
+            echo "HF_TOKEN secret is not set" >&2
+            exit 1
+          fi
+          uv run --no-project --with huggingface-hub \
+            python scripts/publish_image_source_hf.py \
+            --src weights \
+            --message "Image-source classifier freeze (GitHub ${SHA:0:7})"

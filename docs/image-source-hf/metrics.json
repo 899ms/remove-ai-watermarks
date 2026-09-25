@@ -1,0 +1,28 @@
+{
+  "claim": "OpenAI/Google export-source patterns; not SynthID detection",
+  "artifact_sha256": "0e94e565c181416e4f63a2bfc06cd5179f4201befda7481ac510f6a168c612f4",
+  "classes": ["openai", "google", "unknown"],
+  "public_qwen_originals": {
+    "dataset": "Qwen/Qwen-Image-Bench",
+    "revision": "d2493deb153b020cf169c7e3f57d15e4dd697038",
+    "label_provenance": "dataset uploader assertion, not per-file signed source",
+    "selection_status": "opened before this candidate; regression, not independent validation",
+    "openai": {"n": 200, "correct": 198},
+    "google": {"n": 200, "correct": 196},
+    "flux_unknown": {"n": 200, "correct": 200}
+  },
+  "camera_controls": {
+    "dataset": "lightcella/photo-corpus",
+    "revision": "8d960ee416e50a13f5c73d71f47dc37ee3c1da11",
+    "shard": "oi/oi-0002.tar",
+    "selection_status": "prefix and qualification fixed before scoring this model",
+    "origin_caveat": "camera EXIF is not cryptographic human-origin proof",
+    "n_sources": 42,
+    "false_provider_matches": {
+      "original": 0,
+      "jpeg95_420": 0,
+      "jpeg75_420": 0,
+      "bilinear_max1024": 0
+    }
+  }
+}
